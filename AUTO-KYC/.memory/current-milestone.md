@@ -23,13 +23,35 @@ and has a test. Mock providers only. No document uploads - those are M2.
 - [ ] **notifications** - status strings only in M0.
 
 ## Context that changes the target
-This is being built to DEMONSTRATE to a bank, before any provider licence
-exists. That does not lower the bar, it moves it: the mocks have to show what
-will happen once permissions land. ADR-004 settles how. The short version is
-that mocks simulate the provider CONTRACT - envelope, latency, failure
-taxonomy - rather than returning a canned answer, and the Aadhaar offline
-e-KYC path is built as real signature-verification code against a test
-certificate.
+This is being built to DEMONSTRATE to a bank, and then be deployed by one.
+That does not lower the bar, it moves it.
+
+The reframe worth holding on to: a BANK is an eligible entity. It can hold
+Protean/NSDL PAN access and can be licensed AUA/KUA. We cannot. So the seam is
+not "when we get permissions" but "when the bank's credentials are
+configured" - which is a much smaller, more provable claim, and it is the one
+the product has to stand behind.
+
+ADR-004 settles how. Simulators reproduce the provider CONTRACT - envelope,
+latency, failure taxonomy - rather than returning a canned answer, and the
+Aadhaar offline e-KYC path is built as real signature-verification code
+against a test certificate.
+
+## The plan was re-pointed on 6 September 2026
+docs/prd.md and docs/milestones.md were rewritten for this audience. Two
+structural changes, both worth knowing before picking up a slice:
+1. Provider simulation was promoted from a detail to M1, alongside the async
+   worker. They belong together: a simulator's latency and failure modes only
+   mean something once something is orchestrating retries around them.
+2. The employee dashboard moved from last to M3. A bank buys the review queue
+   and the audit trail; a plan that finished the UI last would have had
+   nothing to show until the end.
+New order: M0 skeleton (here) -> M1 verification engine + simulators ->
+M2 Aadhaar offline e-KYC -> M3 demonstration surface -> M4 documents + OCR ->
+M5 rules config + admin + polish.
+
+AGENTS.md gained invariant 10 (a simulated result must never be mistakable
+for a real one) and invariant 7 now covers Aadhaar.
 
 ## Next slice
 **Auth.** Four routes from docs/endpoint-contract.md: register, login, logout,

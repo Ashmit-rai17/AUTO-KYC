@@ -110,3 +110,27 @@ signature-value mismatch - catch both or a forged document becomes a 500
 instead of a FAIL. Worth the detour: the ADR now claims only what was actually
 observed. Still unproven, and flagged as such: extracting the XML from UIDAI's
 share-code-protected ZIP.
+
+### 2026-09-06 - Re-pointed the PRD and the plan at the bank demonstration
+**What:** Rewrote docs/prd.md and docs/milestones.md. Added invariant 10 to
+AGENTS.md and widened invariant 7 to cover Aadhaar; refreshed the commands
+line, which had gone stale after the integration-test split.
+**Why:** the PRD still read as a portfolio build - "mock providers first, real
+ones later" - which is now actively misleading. The bank is the eligible
+entity, not us. It can hold Protean/NSDL PAN access and can be licensed
+AUA/KUA, so the seam is "when the bank's credentials are configured", not
+"when we get permissions". That is a smaller and far more defensible claim,
+and the docs need to say it because it is what the demonstration argues.
+**Decisions:** no new ADR - this records the consequences of ADR-004 rather
+than deciding anything new. Two structural changes to the plan: provider
+simulation promoted into M1 next to the async worker, because a simulator's
+latency and failure taxonomy are meaningless without something orchestrating
+retries; and the employee dashboard pulled from M5 to M3, because the review
+queue and audit trail ARE the demonstration and finishing the UI last would
+leave nothing to show.
+**Docs touched:** prd, milestones, AGENTS.
+**Tests:** none - documentation only.
+**Also recorded:** the five demonstration scenarios are now written into
+milestones.md as a specification rather than living in conversation. The
+provider-outage one is the one a naive stub cannot demonstrate at all, which
+is the whole argument for ADR-004.

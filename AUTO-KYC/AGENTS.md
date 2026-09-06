@@ -19,14 +19,18 @@ only exceptions reach employees in a review queue. Every action is audited.
 4. ML/OCR produce EVIDENCE, never decisions. The rules engine decides.
 5. Every check outputs PASS | REVIEW | FAIL | NOT_AVAILABLE with a human-readable reason.
 6. Audit log is append-only: INSERT only, never UPDATE/DELETE.
-7. Every provider (PAN, OCR, storage) sits behind an adapter; MOCKS first, real later.
+7. Every provider (PAN, Aadhaar, OCR, storage) sits behind an adapter. Simulators
+   reproduce the real contract, not a canned answer (ADR-004).
 8. Credentials never live in frontend code. Never print or commit .env.
 9. Customer-facing messages are vague on purpose (no field-level failure leaks = no enumeration oracle).
+10. A simulated result must NEVER be mistakable for a real one. Every check records
+    its provider and mode; the API refuses to start on simulators in production.
 
 ## Stack & commands
 - Next.js customer app (:3000) · Next.js employee dashboard (:3001) · Node.js API (:4000)
 - PostgreSQL (Docker for local dev) · Object storage: Backblaze B2 (S3-compatible)
-- Test: `npm test` · Migrate: `npm run db:migrate` · Lint: `npm run lint`
+- Test: `npm test` (no database) · `npm run test:integration` (needs one)
+- Migrate: `npm run db:migrate` · Database: `npm run db:up` · Lint: `npm run lint`
 
 ## Security checklist — every route must pass
 1. authenticate (HttpOnly session cookie, SHA-256-hashed token in DB)
