@@ -1,0 +1,31 @@
+{
+  "name": "kycflow",
+  "version": "0.0.0",
+  "private": true,
+  "description": "KYC / account-opening platform",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "api"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace api",
+    "build": "npm run build --workspace api",
+    "start": "npm run start --workspace api",
+    "test": "npm run test --workspace api",
+    "typecheck": "npm run typecheck --workspace api",
+    "lint": "eslint .",
+    "db:migrate": "npm run db:migrate --workspace api",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0"
+  }
+}

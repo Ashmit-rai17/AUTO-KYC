@@ -38,3 +38,23 @@ session protocol could not actually be followed as written.
 **Decisions:** none.
 **Docs touched:** docs/adr/session-cookies.md (date only).
 **Tests:** not applicable, no code yet.
+
+### 2026-09-06 — M0 slice 1: scaffold
+**What:** npm workspace with an `api/` package. TypeScript (ESM, strict),
+Express 5, `pg`, Zod, node-pg-migrate, Vitest + supertest, ESLint flat config,
+Docker PostgreSQL, and liveness / readiness probes.
+**Why:** M0 could not begin while the framework, database client, migration
+tool and test runner were undecided. Wiring every gate in the definition of
+done (`npm test`, `npm run lint`, `npm run db:migrate`) from the first commit
+means later slices cannot quietly skip them.
+**Decisions:** ADR-002. Notably: raw `pg` over an ORM, because audit_log's
+append-only guarantee belongs in the database and an ORM would hide that
+layer; and TypeScript 5.9 rather than the newly released TypeScript 7, which
+is a native rewrite and too new to found this on.
+**Docs touched:** endpoint-contract (operational routes), adr (ADR-002).
+**Tests:** 10 passing. Config defaults and validation, including a test that a
+config error names the offending KEY without echoing its VALUE — invariant 8
+is a rule that can rot silently, so it is pinned by a test. Health liveness
+asserts the database is never queried; readiness covers both up and down.
+**Verified:** install, typecheck, lint, build, and the compiled server
+answering all three routes over HTTP.

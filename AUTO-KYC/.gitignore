@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+
+# Never commit real credentials (AGENTS.md invariant 8)
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store

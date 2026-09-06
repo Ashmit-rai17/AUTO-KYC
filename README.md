@@ -5,8 +5,9 @@ the backend gathers evidence from OCR and authorised providers; a deterministic 
 engine turns that evidence into explainable per-check decisions; only exceptions reach
 a human review queue. Every action is audited.
 
-> **Status — specification only.** There is no application code yet. This repository
-> currently holds the design documents that M0 will be built from.
+> **Status — M0 in progress.** The API scaffold is in place and verified: it
+> installs, typechecks, lints, tests and runs. No KYC endpoints exist yet — the
+> next slice is the database schema.
 
 ## The idea the whole design rests on
 
@@ -54,6 +55,34 @@ human-readable reason a regulator can read.
 same answer as a provider saying *not found*, and the customer should never be penalised
 for the first. The system never auto-rejects on an ambiguous signal — a human does.
 
+## Running it locally
+
+Needs Node 20.11+ and Docker for PostgreSQL.
+
+```bash
+cd AUTO-KYC
+cp .env.example .env
+npm install
+npm run db:up
+npm run dev
+```
+
+The API comes up on `http://localhost:4000`:
+
+```bash
+curl http://localhost:4000/api/health
+curl http://localhost:4000/api/health/ready
+```
+
+| Command | Does |
+| --- | --- |
+| `npm test` | Vitest suite |
+| `npm run typecheck` | TypeScript across `src` and `test` |
+| `npm run lint` | ESLint |
+| `npm run build` | Compile to `api/dist` |
+| `npm run db:migrate` | Apply migrations |
+| `npm run db:up` / `npm run db:down` | Start / stop PostgreSQL |
+
 ## Documentation
 
 Start with [`AGENTS.md`](AUTO-KYC/AGENTS.md). It carries the invariants that the rest of
@@ -99,5 +128,8 @@ the design is not allowed to violate.
 
 ## Stack
 
-Next.js customer app and employee dashboard · Node.js API · PostgreSQL ·
-S3-compatible object storage (Backblaze B2)
+TypeScript on Node 20.11+ · Express 5 · PostgreSQL via `pg`, no ORM ·
+node-pg-migrate · Vitest · Zod. Customer and employee front ends (Next.js) and
+S3-compatible object storage (Backblaze B2) arrive at M5 and M2 respectively.
+
+The reasoning is in [ADR-002](AUTO-KYC/docs/adr/session-cookies.md).

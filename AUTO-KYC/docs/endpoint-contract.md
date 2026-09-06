@@ -42,6 +42,17 @@
 ## Admin
 | POST /api/admin/employees | A | role | create employee (never self-register) ✅ |
 
+## Operational
+| Method & path | Roles | Extra check | Purpose |
+|---|---|---|---|
+| GET /api/health | public | none | liveness; deliberately does NOT touch PostgreSQL |
+| GET /api/health/ready | public | none | readiness; 200 when the database answers, else 503 |
+
+The only routes exempt from the 5-step security checklist: they carry no
+customer data and expose no state beyond up/down. Liveness avoids the database
+on purpose, so a brief outage does not make an orchestrator restart a healthy
+API.
+
 ## Internal (worker, no external route)
 - Verification runner: collects evidence, runs checks, writes
   verification_checks rows, routes to PASS or case creation.
