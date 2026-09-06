@@ -5,9 +5,9 @@ the backend gathers evidence from OCR and authorised providers; a deterministic 
 engine turns that evidence into explainable per-check decisions; only exceptions reach
 a human review queue. Every action is audited.
 
-> **Status — M0 in progress.** Scaffold and database schema are done: all ten
-> tables exist, `audit_log` is append-only at the database level, and 35 tests
-> pass. No KYC endpoints yet — auth is next.
+> **Status — M0 in progress.** Scaffold, database schema and authentication are
+> done: all ten tables exist, `audit_log` is append-only at the database level,
+> sessions revoke instantly, and 70 tests pass. Applications are next.
 
 ## The idea the whole design rests on
 

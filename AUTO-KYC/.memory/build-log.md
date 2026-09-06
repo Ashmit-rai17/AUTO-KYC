@@ -134,3 +134,38 @@ leave nothing to show.
 milestones.md as a specification rather than living in conversation. The
 provider-outage one is the one a naive stub cannot demonstrate at all, which
 is the whole argument for ADR-004.
+
+### 2026-09-06 - M0 slice 3: authentication
+**What:** register / login / logout / me, session middleware and a role guard.
+argon2id password hashing, PostgreSQL-backed sessions, audit on every outcome.
+70 tests now pass (26 unit, 44 integration).
+**Why:** everything after this depends on knowing who is calling. Ownership
+checks, the review queue and the audit trail are all meaningless without it.
+**Decisions:** ADR-005, which closes the two questions this file has been
+carrying. argon2id via @node-rs/argon2 (a prebuilt Rust binding, not a
+node-gyp build - it installed in three seconds on a machine where native
+compilation has already failed twice). Cost m=65536/t=3 at ~64ms, configurable
+but FLOORED at the OWASP minimum by the config schema, so a deployment can
+raise it and cannot quietly weaken it. Cookie stays SameSite=Lax behind a
+same-origin Next.js rewrite proxy, which means the API enables no CORS at all
+- no cross-origin credentialed request is possible, so there is no
+cross-origin surface to defend.
+**Docs touched:** adr (ADR-005), endpoint-contract (auth model, and an honest
+note about where the vagueness is incomplete).
+**Tests:** 26 unit + 44 integration. Beyond the happy paths they pin the
+security properties: a role in the request body cannot make you an ADMIN; the
+session token is in the database only as a SHA-256; logout locks the holder
+out on the very NEXT request, which is the entire reason ADR-001 chose
+sessions over a JWT; suspending an account does the same; and no audit row
+ever contains a password or a token.
+**Two things worth remembering:**
+1. Login spends hashing work even when no user matched. Without that decoy an
+   unknown address answers in microseconds while a known one spends ~64ms -
+   a timing oracle leaking exactly what the shared error message hides.
+2. Typecheck caught a test that would have passed on two SUCCESSES: comparing
+   two failures via `.catch(e => e)` never asserts that either call actually
+   failed. It now goes through a helper that throws if the call succeeds.
+**Known gap, stated rather than hidden:** no rate limiting anywhere. Login is
+brute-forceable and registration's 409 is a weak enumeration signal (ADR-005).
+Both need an ADR because rate limiting adds a dependency and touches every
+route. A bank will ask about this.

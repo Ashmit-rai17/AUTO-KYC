@@ -1,10 +1,32 @@
 # KYCFlow — Endpoint Contract (M0 target set)
 
 ## Auth model
-- Email + password (bcrypt/argon2). Server-side sessions in PostgreSQL —
-  NOT JWT (instant revocation for KYC). Token = 32 random bytes; only its
-  SHA-256 hash is stored. Cookie: kyc_session, HttpOnly, SameSite=Lax,
-  8h expiry. Roles: CUSTOMER | EMPLOYEE | ADMIN.
+- Email + password, hashed with argon2id (ADR-005). Server-side sessions in
+  PostgreSQL — NOT JWT (instant revocation for KYC). Token = 32 random bytes;
+  only its SHA-256 hash is stored. Cookie: kyc_session, HttpOnly,
+  SameSite=Lax, Secure outside development, 8h expiry.
+  Roles: CUSTOMER | EMPLOYEE | ADMIN.
+- A session is live only while it is unexpired, unrevoked AND its user is
+  still active, so suspending an account takes effect on the next request.
+- No CORS. Front ends reach the API through a same-origin path proxied by
+  Next.js rewrites, so no cross-origin credentialed request is ever needed
+  or permitted.
+
+## Deliberate vagueness, and one place it is incomplete
+Every login failure returns the SAME 401 and the same message, whether the
+password was wrong, the address unknown, or the account suspended — and the
+same hashing work is spent either way, so the response time does not give
+away what the message withholds.
+
+Registration is the exception, and it is a known gap rather than an oversight.
+It answers 409 for an address already registered. The message reveals nothing,
+but the status code still separates "taken" from "accepted". Closing it
+properly needs email verification (always answer 202, send a mail), which does
+not exist yet. Recorded in ADR-005.
+
+Validation errors DO name the offending field. That is not a contradiction of
+invariant 9: telling a caller their password is too short reveals nothing
+about anyone else, and withholding it would make the form unusable.
 
 ## Conventions
 - All routes under /api. JSON in/out. Errors: { error: { code, message } }.

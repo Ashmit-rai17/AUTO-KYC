@@ -6,6 +6,7 @@
 | 002 | TypeScript + Express 5 + raw pg for the M0 API | Accepted |
 | 003 | UUID keys, CHECK'd status text, trigger-enforced append-only | Accepted |
 | 004 | Providers are contract simulators; Aadhaar signature path is real | Accepted |
+| 005 | argon2id for passwords; Lax cookie behind a same-origin proxy | Accepted |
 
 Format: context → decision → consequences. Append new ADRs; never edit an
 accepted one (supersede instead).
@@ -145,3 +146,53 @@ genuinely one implementation plus environment variables;
 - UIDAI ships the offline e-KYC XML inside a share-code-protected ZIP.
 Accepting raw XML is enough for the demonstration; ZIP extraction waits for
 M2 and has NOT been proven yet.
+
+---
+# ADR-005: Password hashing and the session cookie across three origins
+Date: 2026-09-06
+Context: AGENTS.md says "bcrypt/argon2" without choosing, and ADR-001 left the
+cookie question open. Both had to be settled before auth could be written.
+There are three origins in development — customer app :3000, employee
+dashboard :3001, API :4000 — and that decides whether SameSite=Lax survives.
+Decision:
+- argon2id via @node-rs/argon2, m=65536 KiB, t=3, p=1 (~64ms on the dev
+  machine). The library is a prebuilt Rust binding rather than a node-gyp
+  build, which matters here: native compilation on this Windows machine has
+  already failed twice for other reasons, and this installed in three seconds
+  with no toolchain.
+- Cost parameters are configurable but the schema FLOORS them at the OWASP
+  minimum (19456 KiB, t=2). A deployment can raise the cost and cannot quietly
+  weaken it.
+- Session cookie stays SameSite=Lax, HttpOnly, Secure outside development. The
+  front ends reach the API through a same-origin path proxied by Next.js
+  rewrites, so the cookie is never third-party. SameSite=None would have
+  required HTTPS in development and is increasingly unreliable as browsers
+  restrict third-party cookies.
+- The API therefore enables NO CORS at all. That is the point rather than an
+  omission: if no browser can make a cross-origin credentialed request, there
+  is no cross-origin attack surface to reason about.
+- Login spends the same hashing work when no user matched, using a decoy
+  digest computed at startup against the live parameters. Without it, an
+  unknown address would answer in microseconds while a known one spent ~64ms,
+  which is a timing oracle that leaks exactly what the shared error message
+  exists to hide.
+- Every login failure — wrong password, unknown address, suspended account —
+  returns one identical 401. A suspended account is checked AFTER the hash so
+  it costs the same as an active one.
+- Session tokens are 32 random bytes; only the SHA-256 is stored. Plain
+  SHA-256 is correct here and argon2 would be wrong: the input is 256 bits of
+  uniform randomness, so there is no dictionary to attack and nothing for a
+  slow KDF to defend.
+Consequences: + login is safe against enumeration by message and by timing;
++ no CORS means no cross-origin credentialed surface at all;
+- argon2id at 64 MiB costs 64 MiB of memory PER CONCURRENT LOGIN, so a burst
+  of logins is a memory-pressure vector. That is an argument for rate limiting
+  and for tuning the cost down if throughput ever matters — the parameters are
+  configurable for exactly this reason.
+- KNOWN RESIDUAL, deliberately accepted for now: registration answers 409 for
+  an address already taken. The message says nothing, but the status code
+  still distinguishes "taken" from "accepted", so it remains a weak
+  enumeration signal. The real fix is email verification — always answer 202
+  and send a mail — which does not exist yet. Rate limiting would blunt it in
+  the meantime and is NOT implemented; it needs its own ADR because it adds a
+  dependency and touches every route.

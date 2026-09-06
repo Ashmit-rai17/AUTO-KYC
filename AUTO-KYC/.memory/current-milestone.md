@@ -16,9 +16,9 @@ and has a test. Mock providers only. No document uploads - those are M2.
       PostgreSQL, health probes. Stack in ADR-002.
 - [x] **DB schema** - all 10 tables, append-only enforced by trigger, 25
       integration tests against a real PostgreSQL. Shape in ADR-003.
-- [ ] **auth** - register / login / logout / me, session middleware,
-      role and ownership guards.  <- NEXT
-- [ ] **applications** - create, patch, consent, submit.
+- [x] **auth** - register / login / logout / me, session middleware,
+      role guard. argon2id + Lax cookie behind a same-origin proxy, ADR-005.
+- [ ] **applications** - create, patch, consent, submit.  <- NEXT
 - [ ] **cases** - employee queue, detail, resolution.
 - [ ] **notifications** - status strings only in M0.
 
@@ -54,19 +54,30 @@ AGENTS.md gained invariant 10 (a simulated result must never be mistakable
 for a real one) and invariant 7 now covers Aadhaar.
 
 ## Next slice
-**Auth.** Four routes from docs/endpoint-contract.md: register, login, logout,
-me. Plus the session middleware every later route depends on.
+**Applications.** Six routes: create, list own, get own, patch, consent,
+submit. This is the first slice with real OWNERSHIP checks - step 3 of the
+security checklist, which auth only stubbed out because /auth/me is
+self-referential by definition.
 
-Open questions, both probably ADR-worthy:
-1. **Password hashing:** argon2id or bcrypt. AGENTS.md says "bcrypt/argon2"
-   without choosing. argon2id is the current recommendation; bcrypt has the
-   wider deployment history. Both have native build steps, and npm on this
-   machine only works from PowerShell - verify the chosen one installs cleanly
-   BEFORE committing to it in an ADR.
-2. **Session cookie across three origins:** customer app (:3000), employee
-   dashboard (:3001), API (:4000). ADR-001 anticipated this and suggested a
-   Next.js rewrite proxy. It decides whether SameSite=Lax survives or has to
-   become None+Secure, so settle it before the front ends exist.
+Watch for:
+1. The database already refuses a submitted application without a consent_id
+   (ADR-003). The submit route must produce a clean 4xx rather than letting
+   that CHECK surface as a 500.
+2. PATCH must be rejected unless the application is still `draft`, and the
+   status must never be settable from the request body - the same
+   mass-assignment hole that register defends against with a fixed role.
+3. Ownership failures should answer 404, not 403. Confirming that someone
+   else's application exists is the same enumeration leak invariant 9 forbids.
+
+## Carried debt, worth doing before the demonstration
+- **No rate limiting anywhere.** Login is brute-forceable and registration is
+  the weak enumeration signal described in ADR-005. It needs its own ADR: a
+  dependency plus a policy that touches every route. A bank will ask.
+- **No email verification**, which is the proper fix for the registration
+  409 signal.
+- **No CSRF token.** SameSite=Lax plus the same-origin proxy covers the
+  realistic cases, but a bank's reviewer may still expect a token on state
+  changing routes. Worth a decision rather than a silence.
 
 ## Working notes
 - Integration tests need a database: `npm run db:up && npm run db:migrate`,
@@ -79,3 +90,11 @@ Open questions, both probably ADR-worthy:
   the trigger overrode what the caller supplied instead.
 - UPDATE and DELETE against an EMPTY table match no rows, so a row trigger
   never fires. Seed a row before asserting that a mutation is refused.
+- argon2id costs 64 MiB of memory PER CONCURRENT LOGIN at the production
+  setting. Fine now; a reason to rate-limit, and the cost parameters are
+  configurable if throughput ever bites.
+- Auth integration tests cannot use the single-transaction trick that
+  schema.integration.test.ts uses: supertest drives the app through the pool,
+  so every request gets its own connection. They use per-run unique emails and
+  delete their users afterwards instead. The audit rows they create stay,
+  because audit_log is append-only - which is the point of it.

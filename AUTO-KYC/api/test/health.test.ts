@@ -1,25 +1,17 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
-import type { Config } from '../src/config.js';
-import type { QueryResult } from '../src/db/pool.js';
+import { fakeHasher, queryable, testConfig } from './helpers.js';
 
-const testConfig: Config = {
-  NODE_ENV: 'test',
-  PORT: 4000,
-  DATABASE_URL: 'postgres://user:pass@localhost:5432/kycflow',
-  SESSION_COOKIE_NAME: 'kyc_session',
-  SESSION_TTL_HOURS: 8,
-  PAN_PROVIDER: 'mock',
-  OCR_PROVIDER: 'mock',
-  STORAGE_PROVIDER: 'mock',
-};
-
-const dbUp = () => Promise.resolve<QueryResult>({ rows: [{ ok: 1 }] });
+const dbUp = () => Promise.resolve({ rows: [{ ok: 1 }] });
 const dbDown = () => Promise.reject(new Error('connection refused'));
 
-function appWith(query: () => Promise<QueryResult>) {
-  return createApp({ config: testConfig, db: { query } });
+function appWith(query: () => Promise<{ rows: unknown[] }>) {
+  return createApp({
+    config: testConfig,
+    db: queryable(query),
+    hasher: fakeHasher(),
+  });
 }
 
 describe('GET /api/health', () => {

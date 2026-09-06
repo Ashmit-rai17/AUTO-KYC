@@ -1,8 +1,8 @@
 import pg from 'pg';
 import type { Config } from '../config.js';
 
-export interface QueryResult {
-  rows: unknown[];
+export interface QueryResult<T = unknown> {
+  rows: T[];
 }
 
 /**
@@ -10,9 +10,16 @@ export interface QueryResult {
  * on this, not on `pg`, so routes can be tested without a live database.
  */
 export interface Db {
-  query(text: string, params?: readonly unknown[]): Promise<QueryResult>;
+  query<T = unknown>(text: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
   close(): Promise<void>;
 }
+
+/**
+ * What most modules actually need. Depending on this rather than on Db keeps
+ * them testable with a plain object and makes it obvious that a repository
+ * cannot close the pool out from under the application.
+ */
+export type Queryable = Pick<Db, 'query'>;
 
 export function createDb(config: Config): Db {
   const pool = new pg.Pool({
@@ -24,9 +31,9 @@ export function createDb(config: Config): Db {
   });
 
   return {
-    async query(text, params) {
+    async query<T>(text: string, params?: readonly unknown[]) {
       const result = await pool.query(text, params ? [...params] : undefined);
-      return { rows: result.rows };
+      return { rows: result.rows as T[] };
     },
     close() {
       return pool.end();

@@ -14,7 +14,12 @@ const EnvSchema = z.object({
   SESSION_COOKIE_NAME: z.string().min(1).default('kyc_session'),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(8),
 
-  // docs/provider-adapters.md — M0 runs entirely on mocks.
+  // Password hashing (ADR-005). The minimum is the OWASP floor for argon2id,
+  // so configuration can raise the cost but never weaken it below that.
+  ARGON2_MEMORY_KIB: z.coerce.number().int().min(19456).default(65536),
+  ARGON2_TIME_COST: z.coerce.number().int().min(2).default(3),
+
+  // docs/provider-adapters.md — M0 runs entirely on simulators.
   PAN_PROVIDER: z.enum(['mock', 'real']).default('mock'),
   OCR_PROVIDER: z.enum(['mock', 'real']).default('mock'),
   STORAGE_PROVIDER: z.enum(['mock', 'b2']).default('mock'),
