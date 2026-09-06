@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "db:migrate": "npm run db:migrate --workspace api",
     "db:up": "docker compose up -d db",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "test:integration": "npm run test:integration --workspace api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

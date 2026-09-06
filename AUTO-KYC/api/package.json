@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "db:migrate": "node-pg-migrate -m migrations up",
-    "db:migrate:down": "node-pg-migrate -m migrations down"
+    "db:migrate:down": "node-pg-migrate -m migrations down",
+    "test:integration": "vitest run -c vitest.integration.config.ts"
   },
   "dependencies": {
     "express": "^5.2.1",

@@ -5,9 +5,9 @@ the backend gathers evidence from OCR and authorised providers; a deterministic 
 engine turns that evidence into explainable per-check decisions; only exceptions reach
 a human review queue. Every action is audited.
 
-> **Status — M0 in progress.** The API scaffold is in place and verified: it
-> installs, typechecks, lints, tests and runs. No KYC endpoints exist yet — the
-> next slice is the database schema.
+> **Status — M0 in progress.** Scaffold and database schema are done: all ten
+> tables exist, `audit_log` is append-only at the database level, and 35 tests
+> pass. No KYC endpoints yet — auth is next.
 
 ## The idea the whole design rests on
 
@@ -82,6 +82,10 @@ curl http://localhost:4000/api/health/ready
 | `npm run build` | Compile to `api/dist` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:up` / `npm run db:down` | Start / stop PostgreSQL |
+| `npm run test:integration` | Schema tests against a real PostgreSQL |
+
+`npm test` never touches the database, so it runs anywhere. The integration
+suite does, and needs `npm run db:up && npm run db:migrate` first.
 
 ## Documentation
 
