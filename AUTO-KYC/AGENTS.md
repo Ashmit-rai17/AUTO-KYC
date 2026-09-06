@@ -38,20 +38,22 @@ only exceptions reach employees in a review queue. Every action is audited.
 ## Agent rules
 - BEFORE any cross-cutting change (new table, new endpoint, new provider
   interface, new dependency): STOP and ask the human. Propose an ADR first.
-- When you change a route / schema / adapter, update docs/03, docs/04, docs/05
-  in the SAME change. Docs are the source of truth, not your memory.
+- When you change a route / schema / adapter, update endpoint-contract.md,
+  db-schema.md and provider-adapters.md in the SAME change. Docs are the
+  source of truth, not your memory.
 - A route without a test is not done. Run tests after every slice.
 - After every slice, append an entry to .memory/build-log.md (see template there).
 - If you believe "we decided X" and X is not in an ADR or doc — say so; do not assume.
 
 ## Session protocol (read this every session start)
-1. Read docs/00-context.md and .memory/current-milestone.md.
+1. Read docs/context.md and .memory/current-milestone.md.
 2. State which milestone/slice you believe is next + the exit criteria.
 3. Wait for human confirmation before writing code.
 4. Implement ONE slice. Show the diff. Do not touch unrelated code.
 
 ## Source-of-truth docs map
-docs/00-context.md (overview) · 01-prd.md (requirements) · 02-architecture.md
-03-endpoint-contract.md · 04-db-schema.md · 05-provider-adapters.md
-06-rules-engine.md · 07-milestones.md · docs/adr/* (decision records)
+docs/context.md (overview) · docs/prd.md (requirements)
+docs/architecture.md · docs/endpoint-contract.md · docs/db-schema.md
+docs/provider-adapters.md · docs/rules-engine.md · docs/milestones.md
+docs/adr/* (decision records)
 .memory/current-milestone.md · .memory/build-log.md (what/why journal)

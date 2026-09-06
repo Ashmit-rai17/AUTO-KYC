@@ -30,7 +30,7 @@
   entity_type, entity_id, detail JSONB, created_at) — APPEND-ONLY
 
 ## Constraints & notes
-- applications.status transitions follow a state machine (docs/06).
+- applications.status transitions follow a state machine (docs/rules-engine.md).
 - documents.storage_key is never exposed to the browser except inside a
   short-lived signed URL from the backend.
 - Indexes: sessions(token_hash), applications(user_id), verification_checks

@@ -27,7 +27,8 @@ tests can assert PASS/REVIEW paths.
 ## 3. OCR provider adapter
 - Interface: extractDocument(bytes | storageKey) → { fields: { name,
   dob, pan, confidence… }, raw }
-- OCR output is EVIDENCE with confidence — never a decision (docs/06).
+- OCR output is EVIDENCE with confidence — never a decision
+  (docs/rules-engine.md).
 - Mock: reads a fixture file so matching/rules can be tested offline.
 
 ## Failure semantics (per earlier design)

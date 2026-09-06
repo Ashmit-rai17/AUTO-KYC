@@ -37,6 +37,6 @@
 6. Every state change → audit_log row (append-only).
 
 ## Boundaries / why
-- Files ≠ rows → object storage (see docs/05).
-- ML/OCR produce evidence → rules decide (see docs/06).
+- Files ≠ rows → object storage (see docs/provider-adapters.md).
+- ML/OCR produce evidence → rules decide (see docs/rules-engine.md).
 - Append-only only for audit_log; other tables are mutable (typo fixes).

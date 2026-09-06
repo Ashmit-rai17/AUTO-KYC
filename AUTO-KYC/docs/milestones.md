@@ -4,7 +4,7 @@
 Target: register → login → create app → patch → consent → submit →
 mock PAN → auto-PASS or REVIEW case → employee list/detail/resolve →
 audit rows present. Test with curl/Postman before any UI.
-Exit: every route in docs/03 (auth/apps/cases) works with tests.
+Exit: every route in docs/endpoint-contract.md works with tests.
 Build order: scaffold → DB schema → auth (register/login/middleware) →
 applications → cases → notifications.
 
@@ -30,5 +30,5 @@ Customer app + employee dashboard UX; notifications surfaced; error
 copy hardened (soft messages, no enumeration leaks).
 
 ## Definition of done per slice
-Diff reviewed by human · tests pass · docs/03/04/05 updated if touched ·
-.build-log entry appended with WHY.
+Diff reviewed by human · tests pass · contract / schema / adapter docs
+updated if touched · .build-log entry appended with WHY.
