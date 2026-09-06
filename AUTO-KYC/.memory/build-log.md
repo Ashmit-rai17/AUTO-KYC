@@ -85,3 +85,28 @@ again; the rollback leaves no orphan functions.
 3. TRUNCATE on consents is refused by its foreign key BEFORE the trigger is
    reached, so that table is protected by two mechanisms and reports a
    different error than the other two.
+
+### 2026-09-06 - ADR-004: how providers get simulated
+**What:** No code. Recorded how the provider layer behaves for a bank
+demonstration, and updated docs/provider-adapters.md with the Aadhaar adapter,
+the two PAN response shapes, and the provenance envelope.
+**Why:** the audience changed the requirement. This is shown to a bank before
+any licence exists, so the mocks have to demonstrate the real process rather
+than return canned answers. Settling it now means the provider interface and
+the evidence shape are not retrofitted later around whatever was convenient.
+**Decisions:** ADR-004. Mocks simulate the contract - envelope, ~1.2s latency,
+full failure taxonomy - because a zero-millisecond {valid:true} hides the async
+worker and the outage handling, which is the part a bank actually buys. Every
+check row stamps provider mode, and the API refuses to boot with mocks under
+NODE_ENV=production, so a simulated result can never be mistaken for a real
+one.
+**Docs touched:** adr (ADR-004), provider-adapters.
+**Tests:** none - documentation only.
+**Spiked before accepting:** proved the Aadhaar offline e-KYC signature path
+works in Node (xml-crypto 6.1.2, RSA-SHA256, enveloped): signs and verifies
+against the right anchor, rejects an altered name, rejects a different anchor.
+Trap found: xml-crypto RETURNS false on a digest mismatch but THROWS on a
+signature-value mismatch - catch both or a forged document becomes a 500
+instead of a FAIL. Worth the detour: the ADR now claims only what was actually
+observed. Still unproven, and flagged as such: extracting the XML from UIDAI's
+share-code-protected ZIP.

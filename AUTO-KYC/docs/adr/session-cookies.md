@@ -5,6 +5,7 @@
 | 001 | Server-side sessions over JWT | Accepted |
 | 002 | TypeScript + Express 5 + raw pg for the M0 API | Accepted |
 | 003 | UUID keys, CHECK'd status text, trigger-enforced append-only | Accepted |
+| 004 | Providers are contract simulators; Aadhaar signature path is real | Accepted |
 
 Format: context → decision → consequences. Append new ADRs; never edit an
 accepted one (supersede instead).
@@ -86,3 +87,61 @@ rather than conventions, and are covered by integration tests;
 `npm run test:integration` and `npm test` stays runnable anywhere;
 - TRUNCATE on consents is actually refused by its foreign key before the
 trigger is reached. Protected either way, but by two different mechanisms.
+
+---
+# ADR-004: Provider simulation for the bank demonstration
+Date: 2026-09-06
+Context: this system is being shown to a bank before any provider licence
+exists. Neither UIDAI nor the Income Tax Department can be called directly:
+PAN verification runs through Protean/NSDL and is restricted to eligible
+regulated entities, and Aadhaar authentication requires AUA/KUA licensing that
+a private project cannot obtain (Section 57 of the Aadhaar Act was struck down
+in Puttaswamy, 2018; the 2019 amendment reopened only a narrow permitted
+path). The demonstration therefore has to show what WILL happen once the
+permissions land, without pretending the permissions already exist.
+Decision:
+- Mocks are SIMULATORS OF THE CONTRACT, not stubs. A stub returning
+  {valid:true} in zero milliseconds hides the very architecture being
+  demonstrated: the async worker, the verifying state, retry and backoff, and
+  the difference between an outage and a refusal.
+- Each mock reproduces the real provider's response envelope, a realistic
+  latency (default ~1.2s with jitter, configurable), and the full failure
+  taxonomy: timeout, 5xx, rate-limited, and a genuine not-found.
+- Outcomes are reachable three ways: a fixture registry of named personas so a
+  demonstration is repeatable; a deterministic fallback derived from the input
+  so any value a bank officer types produces a stable, explainable result
+  instead of an error; and a runtime fault switch so an outage can be
+  triggered live, mid-demonstration, without editing fixtures.
+- Every verification_checks row records provenance in evidence:
+  { provider: { name, mode: mock|real, request_id, latency_ms } }.
+  Two reasons: a bank's auditors will ask how they can tell a result was not
+  fabricated, and a mock result must never be mistakable for a real one.
+- The API refuses to start with any mock provider when NODE_ENV=production,
+  unless ALLOW_MOCK_PROVIDERS_IN_PROD is explicitly set.
+- The PAN adapter handles BOTH real-world response shapes. Some Protean modes
+  return the official name for us to compare; others accept a submitted name
+  and return only match/no-match. Where only a boolean comes back there is no
+  similarity score, so docs/rules-engine.md cannot assume one is always
+  available.
+- The Aadhaar offline e-KYC path is built FOR REAL, not simulated. UIDAI
+  Paperless Offline e-KYC is a signed XML document; verifying it means
+  checking an XML digital signature against a trust anchor. That code is
+  identical in production - only the certificate changes. Fixtures are signed
+  with a self-signed test key; production points at the UIDAI certificate.
+  This is the one place where the demonstration runs genuine production code,
+  and it is honest to say so in the room.
+Verified by spike before accepting this ADR (xml-crypto 6.1.2 with
+@xmldom/xmldom 0.9.12, RSA-SHA256, enveloped signature): a UIDAI-shaped
+document signs and verifies against the correct anchor; a document whose name
+field is altered is rejected; a document checked against a different anchor is
+rejected. One trap found, worth writing down: xml-crypto RETURNS false on a
+digest mismatch but THROWS on a signature-value mismatch, so an adapter that
+only inspects the return value turns a forged document into a 500 instead of a
+FAIL. Both paths must be caught.
+Consequences: + the demonstration shows the real process, and the seam is
+genuinely one implementation plus environment variables;
++ the Aadhaar path needs no licence and is stronger evidence than any mock;
+- the simulator is more code than a stub, and its fixtures need maintaining;
+- UIDAI ships the offline e-KYC XML inside a share-code-protected ZIP.
+Accepting raw XML is enough for the demonstration; ZIP extraction waits for
+M2 and has NOT been proven yet.
