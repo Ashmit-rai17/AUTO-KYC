@@ -14,7 +14,12 @@ export interface PublicUser {
 }
 
 export interface AuthService {
-  register(input: { email: string; password: string }): Promise<PublicUser>;
+  /**
+   * Resolves identically whether the address was free or already registered.
+   * Returning a user — or throwing — would reveal which, so it returns
+   * nothing. See the implementation.
+   */
+  register(input: { email: string; password: string }): Promise<void>;
   login(input: { email: string; password: string }): Promise<{
     user: PublicUser;
     token: string;
@@ -51,40 +56,54 @@ export function createAuthService(deps: {
   const repo = deps.repo ?? createAuthRepo(db);
 
   return {
+    /**
+     * Says nothing about whether the address was already registered — no
+     * status code, no message, no timing difference (ADR-006).
+     *
+     * The earlier version answered 409 for a taken address. The message
+     * revealed nothing, but the status code still separated "taken" from
+     * "accepted", which is enough to test whether a given person banks here.
+     * For a KYC system that is a disclosure about a customer, not merely an
+     * API wart.
+     *
+     * The password is hashed BEFORE the insert is attempted and in both
+     * outcomes, so the two paths cost the same time as well as returning the
+     * same answer.
+     */
     async register({ email, password }) {
       const normalized = normalizeEmail(email);
       const passwordHash = await hasher.hash(password);
 
-      let user;
       try {
         // Role is fixed here and never read from the request. Employees are
         // seeded by an ADMIN through a separate route; letting a caller choose
         // their own role would be a privilege-escalation hole.
-        user = await repo.insertUser({ email: normalized, passwordHash, role: 'CUSTOMER' });
+        const user = await repo.insertUser({
+          email: normalized,
+          passwordHash,
+          role: 'CUSTOMER',
+        });
+
+        await writeAudit(db, {
+          actorType: 'customer',
+          actorId: user.id,
+          action: 'auth.register.succeeded',
+          entityType: 'user',
+          entityId: user.id,
+        });
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
 
+        // Recorded for us, invisible to the caller. Nothing is written to the
+        // existing account: an attacker must not be able to touch a stranger's
+        // row by claiming their address.
         await writeAudit(db, {
           actorType: 'system',
-          action: 'auth.register.rejected',
+          action: 'auth.register.duplicate',
           entityType: 'user',
-          detail: { reason: 'duplicate_email' },
+          detail: { reason: 'address_already_registered' },
         });
-
-        // Deliberately says nothing about WHY. See the note in
-        // docs/endpoint-contract.md about the residual signal here.
-        throw new AppError(409, 'REGISTRATION_FAILED', 'Registration could not be completed');
       }
-
-      await writeAudit(db, {
-        actorType: 'customer',
-        actorId: user.id,
-        action: 'auth.register.succeeded',
-        entityType: 'user',
-        entityId: user.id,
-      });
-
-      return toPublicUser(user);
     },
 
     async login({ email, password }) {

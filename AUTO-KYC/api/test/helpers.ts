@@ -12,6 +12,13 @@ export const testConfig: Config = {
   // tests run the real hasher, and 64 MiB per call would make them crawl.
   ARGON2_MEMORY_KIB: 19456,
   ARGON2_TIME_COST: 2,
+  // Off by default: the suite makes hundreds of requests from one address and
+  // would throttle itself. The limiter has its own tests, which switch it on
+  // deliberately with a low ceiling.
+  RATE_LIMIT_ENABLED: false,
+  RATE_LIMIT_WINDOW_MINUTES: 15,
+  AUTH_RATE_LIMIT_MAX: 10,
+  GLOBAL_RATE_LIMIT_MAX: 300,
   PAN_PROVIDER: 'mock',
   OCR_PROVIDER: 'mock',
   STORAGE_PROVIDER: 'mock',

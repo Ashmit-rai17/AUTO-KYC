@@ -19,6 +19,7 @@
     "@node-rs/argon2": "^2.2.0",
     "cookie": "^0.7.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
     "pg": "^8.23.0",
     "zod": "^4.5.4"
   },

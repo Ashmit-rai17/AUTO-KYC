@@ -69,15 +69,22 @@ Watch for:
 3. Ownership failures should answer 404, not 403. Confirming that someone
    else's application exists is the same enumeration leak invariant 9 forbids.
 
-## Carried debt, worth doing before the demonstration
-- **No rate limiting anywhere.** Login is brute-forceable and registration is
-  the weak enumeration signal described in ADR-005. It needs its own ADR: a
-  dependency plus a policy that touches every route. A bank will ask.
-- **No email verification**, which is the proper fix for the registration
-  409 signal.
-- **No CSRF token.** SameSite=Lax plus the same-origin proxy covers the
-  realistic cases, but a bank's reviewer may still expect a token on state
-  changing routes. Worth a decision rather than a silence.
+## Carried debt
+Cleared on 6 September 2026 by ADR-006: rate limiting, CSRF tokens, and a
+registration endpoint that no longer distinguishes a taken address from a free
+one. All three were closed before applications began, so nothing was built on
+top of them.
+
+What is still outstanding, and why:
+- **No password reset.** Registration is now silent, so someone who
+  re-registers an address they already own gets 202, their password is
+  unchanged, and their next login fails with the ordinary 401 with no way
+  forward. The fix is a reset flow, which needs an email provider. That
+  provider should follow ADR-004 and ship with a simulator so the flow can be
+  demonstrated before any mail is actually sent.
+- **Rate-limit store is in-memory**, so the limit multiplies by instance count
+  behind more than one API instance. Correct for the demonstration; must move
+  to a shared store before it is not.
 
 ## Working notes
 - Integration tests need a database: `npm run db:up && npm run db:migrate`,
@@ -98,3 +105,11 @@ Watch for:
   so every request gets its own connection. They use per-run unique emails and
   delete their users afterwards instead. The audit rows they create stay,
   because audit_log is append-only - which is the point of it.
+- Two rate limiters, not one, and the reason is easy to undo by accident.
+  Login uses skipSuccessfulRequests so a shared office address is not locked
+  out. Registration must NOT, because it always answers 202 and so has no
+  failures to count - with skipSuccessfulRequests it would have no limit at
+  all. Combining the two fixes naively produced exactly that hole.
+- CSRF is gated on "does this request carry a session cookie", not on a list
+  of exempt paths. New routes are covered automatically; nothing to keep in
+  sync.

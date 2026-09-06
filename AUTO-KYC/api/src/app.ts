@@ -1,7 +1,9 @@
 import express, { type Express, Router } from 'express';
 import type { Config } from './config.js';
 import type { Queryable } from './db/pool.js';
+import { requireCsrf } from './http/csrf.js';
 import { errorHandler, notFound } from './http/errors.js';
+import { globalRateLimit } from './http/rate-limit.js';
 import { createAuthRepo } from './modules/auth/auth.repo.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { createAuthService } from './modules/auth/auth.service.js';
@@ -36,9 +38,17 @@ export function createApp({ config, db, hasher }: AppDeps): Express {
     app.set('trust proxy', 1);
   }
 
+  // Before anything expensive: a request that will be rejected should not get
+  // as far as parsing a body or hashing a password.
+  app.use(globalRateLimit(config));
+
   // Documents travel to object storage directly via signed URLs, so request
   // bodies here are small JSON payloads only (AGENTS.md invariant 2).
   app.use(express.json({ limit: '100kb' }));
+
+  // Applies to every state-changing request that carries a session, so routes
+  // added later are covered without anyone remembering to opt in (ADR-006).
+  app.use(requireCsrf(config));
 
   // No CORS middleware, deliberately. The front ends reach this API through a
   // same-origin path proxied by Next.js rewrites, so no browser ever needs to

@@ -19,6 +19,22 @@ const EnvSchema = z.object({
   ARGON2_MEMORY_KIB: z.coerce.number().int().min(19456).default(65536),
   ARGON2_TIME_COST: z.coerce.number().int().min(2).default(3),
 
+  // Rate limiting (ADR-006).
+  //
+  // Note the enum rather than z.coerce.boolean(): coercion would read the
+  // string "false" as truthy and silently enable something the operator
+  // switched off. For a control that exists to be switched off, that failure
+  // mode is unacceptable.
+  RATE_LIMIT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  /** Per IP, per window, on the credential-accepting routes. */
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /** Per IP, per window, everywhere else. */
+  GLOBAL_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+
   // docs/provider-adapters.md — M0 runs entirely on simulators.
   PAN_PROVIDER: z.enum(['mock', 'real']).default('mock'),
   OCR_PROVIDER: z.enum(['mock', 'real']).default('mock'),

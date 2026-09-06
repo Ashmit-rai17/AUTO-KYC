@@ -169,3 +169,31 @@ ever contains a password or a token.
 brute-forceable and registration's 409 is a weak enumeration signal (ADR-005).
 Both need an ADR because rate limiting adds a dependency and touches every
 route. A bank will ask about this.
+
+### 2026-09-06 - Closing the three gaps auth left open
+**What:** Rate limiting on every route and strictly on credential routes, CSRF
+double-submit tokens on state-changing requests, and a registration endpoint
+that answers identically whether or not the address is taken. 82 tests now
+pass (26 unit, 56 integration).
+**Why:** all three were written down as debt when auth landed. Closing them
+before applications means nothing gets built on top of a known hole - and a
+bank's reviewer would have found every one of them.
+**Decisions:** ADR-006.
+**Docs touched:** adr (ADR-006), endpoint-contract (register is now 202, plus
+the rate-limit and CSRF contract).
+**Tests:** 26 unit + 56 integration, including that a failed CSRF check leaves
+the session usable - a defence that logged the victim out would be a
+denial-of-service - and that registration's two paths are byte-identical
+rather than merely similarly worded.
+**The thing worth remembering, because it was silent:** the first version used
+ONE rate limiter with skipSuccessfulRequests for both credential routes. The
+enumeration fix had just made registration always return 202, so every
+registration counted as successful and registration ended up with NO limit at
+all. Two individually correct fixes combined into a hole that neither one had
+on its own, and nothing about the code looked wrong. It surfaced only because
+a test asserted the third registration is refused. Registration now counts
+every request; login still skips successes so a shared office address is not
+locked out.
+**Also fixed the claim, not just the code:** ADR-005 had said rate limiting
+would blunt the registration signal. With the shared limiter it would not
+have. The ADR now says what is actually true.

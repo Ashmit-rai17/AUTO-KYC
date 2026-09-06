@@ -12,21 +12,31 @@
   Next.js rewrites, so no cross-origin credentialed request is ever needed
   or permitted.
 
-## Deliberate vagueness, and one place it is incomplete
+## Deliberate vagueness
 Every login failure returns the SAME 401 and the same message, whether the
 password was wrong, the address unknown, or the account suspended — and the
-same hashing work is spent either way, so the response time does not give
-away what the message withholds.
+same hashing work is spent either way, so the response time does not give away
+what the message withholds.
 
-Registration is the exception, and it is a known gap rather than an oversight.
-It answers 409 for an address already registered. The message reveals nothing,
-but the status code still separates "taken" from "accepted". Closing it
-properly needs email verification (always answer 202, send a mail), which does
-not exist yet. Recorded in ADR-005.
+Registration answers 202 { status: "accepted" } in every case, including an
+address that is already registered: same status, same body, same timing
+(ADR-006). It is therefore not possible to learn from this API whether a given
+person banks here. Nothing is written to an existing account, so re-registering
+someone else's address cannot alter their row.
 
 Validation errors DO name the offending field. That is not a contradiction of
 invariant 9: telling a caller their password is too short reveals nothing
 about anyone else, and withholding it would make the form unusable.
+
+## Rate limiting and CSRF (ADR-006)
+- Every response may be 429 { error: { code: "RATE_LIMITED" } }. Credential
+  routes are limited strictly, everything else generously.
+- Any state-changing request (POST/PUT/PATCH/DELETE) that carries a session
+  cookie must also send `x-csrf-token` matching the readable `kyc_csrf` cookie
+  issued at login. Without it the answer is 403 CSRF_FAILED, and the session
+  remains valid — a failed check must not log the victim out.
+- Requests with no session cookie are exempt, which is why login and register
+  need no special case.
 
 ## Conventions
 - All routes under /api. JSON in/out. Errors: { error: { code, message } }.
@@ -36,7 +46,7 @@ about anyone else, and withholding it would make the form unusable.
 ## Auth
 | Method & path | Roles | Extra check | Purpose |
 |---|---|---|---|
-| POST /api/auth/register | public | none | create CUSTOMER ✅ |
+| POST /api/auth/register | public | none | create CUSTOMER; always 202, never reveals a taken address ✅ |
 | POST /api/auth/login | public | none | set session cookie ✅ |
 | POST /api/auth/logout | any | session | destroy session ✅ |
 | GET /api/auth/me | any | session | current user + role ✅ |

@@ -7,7 +7,8 @@ a human review queue. Every action is audited.
 
 > **Status — M0 in progress.** Scaffold, database schema and authentication are
 > done: all ten tables exist, `audit_log` is append-only at the database level,
-> sessions revoke instantly, and 70 tests pass. Applications are next.
+> sessions revoke instantly, credential routes are rate limited, state-changing
+> requests carry a CSRF token, and 82 tests pass. Applications are next.
 
 ## The idea the whole design rests on
 

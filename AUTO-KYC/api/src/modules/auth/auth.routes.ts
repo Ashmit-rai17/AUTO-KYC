@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Config } from '../../config.js';
 import { clearSessionCookie, setSessionCookie } from '../../http/cookies.js';
+import { clearCsrfToken, issueCsrfToken } from '../../http/csrf.js';
 import { AppError } from '../../http/errors.js';
 import { requireSession } from '../../http/middleware.js';
+import { loginRateLimit, registerRateLimit } from '../../http/rate-limit.js';
 import { parseBody } from '../../http/validate.js';
 import type { AuthRepo } from './auth.repo.js';
 import type { AuthService } from './auth.service.js';
@@ -39,31 +41,47 @@ export function authRoutes(deps: {
 }): Router {
   const router = Router();
   const session = requireSession({ repo: deps.repo, config: deps.config });
+  // Two limiters, not one. Login skips successful requests so a shared
+  // office address is not locked out; registration counts everything, because
+  // it always answers 202 and so has no failures to count. See
+  // http/rate-limit.ts.
+  const throttleLogin = loginRateLimit(deps.config);
+  const throttleRegister = registerRateLimit(deps.config);
 
-  // POST /api/auth/register — public. Creates a CUSTOMER, and only a CUSTOMER.
-  router.post('/auth/register', (req, res, next) => {
+  /**
+   * POST /api/auth/register — public. Creates a CUSTOMER, and only a CUSTOMER.
+   *
+   * Always 202, never 201 or 409. The response is identical whether an account
+   * was created or the address was already taken, because the difference is
+   * information about a customer (ADR-006).
+   */
+  router.post('/auth/register', throttleRegister, (req, res, next) => {
     const body = parseBody(CredentialsSchema, req.body);
     deps.service
       .register(body)
-      .then((user) => res.status(201).json({ user }))
+      .then(() => res.status(202).json({ status: 'accepted' }))
       .catch(next);
   });
 
   // POST /api/auth/login — public.
-  router.post('/auth/login', (req, res, next) => {
+  router.post('/auth/login', throttleLogin, (req, res, next) => {
     const body = parseBody(LoginSchema, req.body);
     deps.service
       .login(body)
       .then(({ user, token }) => {
         setSessionCookie(res, token, deps.config);
-        // The token goes in the cookie and nowhere else. Returning it in the
-        // body would put it somewhere script can read, defeating httpOnly.
+        // Issued alongside the session so the front end has a token to echo
+        // back on state-changing requests (ADR-006).
+        issueCsrfToken(res, deps.config);
+        // The session token goes in the cookie and nowhere else. Returning it
+        // in the body would put it somewhere script can read, defeating
+        // httpOnly.
         res.json({ user });
       })
       .catch(next);
   });
 
-  // POST /api/auth/logout — any authenticated role.
+  // POST /api/auth/logout — any authenticated role. CSRF-guarded globally.
   router.post('/auth/logout', session, (req, res, next) => {
     if (!req.auth) {
       next(new AppError(401, 'UNAUTHENTICATED', 'Authentication required'));
@@ -73,6 +91,7 @@ export function authRoutes(deps: {
       .logout(req.auth)
       .then(() => {
         clearSessionCookie(res, deps.config);
+        clearCsrfToken(res, deps.config);
         res.status(204).end();
       })
       .catch(next);

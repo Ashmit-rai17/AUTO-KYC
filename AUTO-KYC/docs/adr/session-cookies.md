@@ -7,6 +7,7 @@
 | 003 | UUID keys, CHECK'd status text, trigger-enforced append-only | Accepted |
 | 004 | Providers are contract simulators; Aadhaar signature path is real | Accepted |
 | 005 | argon2id for passwords; Lax cookie behind a same-origin proxy | Accepted |
+| 006 | Rate limiting, CSRF tokens, and a silent registration | Accepted |
 
 Format: context → decision → consequences. Append new ADRs; never edit an
 accepted one (supersede instead).
@@ -196,3 +197,55 @@ Consequences: + login is safe against enumeration by message and by timing;
   and send a mail — which does not exist yet. Rate limiting would blunt it in
   the meantime and is NOT implemented; it needs its own ADR because it adds a
   dependency and touches every route.
+
+---
+# ADR-006: Closing the three gaps ADR-005 left open
+Date: 2026-09-06
+Context: ADR-005 shipped auth with three acknowledged holes — no rate limiting
+anywhere, a registration endpoint whose 409 still distinguished a taken
+address from a free one, and no CSRF token. All three were recorded as debt.
+This closes them before anything is built on top.
+Decision:
+- express-rate-limit, applied globally at a generous ceiling and strictly on
+  the credential-accepting routes. It runs BEFORE body parsing, so a request
+  that will be refused never reaches argon2.
+- TWO limiters, not one, and the difference is the whole point. Login uses
+  skipSuccessfulRequests so a shared office address is not locked out when
+  colleagues sign in legitimately; only failures count, which is all an
+  attacker produces. Registration counts EVERY request, because it now always
+  answers 202 and therefore has no failures to count.
+- Registration answers 202 { status: "accepted" } whether or not the address
+  was already taken. Identical status, identical body, and the password is
+  hashed on both paths so the timing matches too. Nothing is written to an
+  existing account, so re-registering someone else's address cannot touch
+  their row.
+- CSRF by double-submit cookie: a readable kyc_csrf cookie issued at login,
+  echoed back in an x-csrf-token header on state-changing requests. Guarded
+  globally, gated on "does this request carry a session cookie" rather than on
+  a list of exempt paths — CSRF only matters when the browser would attach
+  credentials, so login and register need no special case and nothing has to
+  be kept in sync as routes are added.
+- The CSRF cookie is deliberately NOT httpOnly. The front end has to read it.
+  It is not a credential: it proves only that the caller could read a cookie
+  on our origin, which a cross-site attacker cannot do.
+A bug found while doing this, recorded because it was silent and would not
+have been caught by review: the first version used ONE limiter with
+skipSuccessfulRequests for both routes. Because the enumeration fix made
+registration always return 202, every registration counted as successful, and
+registration ended up with no limit whatsoever — leaving the signal freely
+mineable and mass account creation unthrottled. Two correct fixes combined
+into a hole. A test asserting the third registration is refused caught it.
+Consequences: + online password guessing is impractical; + registration
+reveals nothing by status, body or timing; + state-changing requests need a
+token an attacker cannot obtain.
+- The rate-limit store is IN-MEMORY, so each API instance counts separately.
+Correct for the single instance the demonstration runs; behind more than one
+the effective limit multiplies by the instance count and this must move to a
+shared store. Not a silent limitation — it is asserted nowhere and stated
+here.
+- REMAINING GAP: with registration now silent, a customer who re-registers an
+address they already own gets 202 and their password is unchanged, so their
+next login fails with the ordinary 401 and they have no way forward. The
+answer is a password-reset flow, which needs an email provider. That provider
+should follow ADR-004 and ship with a simulator so the flow is demonstrable
+before any mail is actually sent.

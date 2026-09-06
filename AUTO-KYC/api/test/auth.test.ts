@@ -123,30 +123,29 @@ describe('session tokens', () => {
 // ------------------------------------------------------------------ register
 
 describe('register', () => {
-  it('creates a CUSTOMER and audits it', async () => {
-    const { service, audits } = serviceWith(fakeRepo());
+  it('creates a CUSTOMER as a lowercased address and audits it', async () => {
+    let stored: { email: string; role: string } | undefined;
+    const { service, audits } = serviceWith(
+      fakeRepo({
+        insertUser: (input) => {
+          stored = { email: input.email, role: input.role };
+          return Promise.resolve({ ...ACTIVE_USER, ...input, password_hash: 'stored' });
+        },
+      }),
+    );
 
-    const user = await service.register({
-      email: 'New.Person@Example.com',
+    await service.register({
+      email: '  New.Person@Example.com  ',
       password: 'a sufficiently long password',
     });
 
-    expect(user.role).toBe('CUSTOMER');
-    // Stored lowercased, to match the unique index on lower(email).
-    expect(user.email).toBe('new.person@example.com');
+    expect(stored).toEqual({ email: 'new.person@example.com', role: 'CUSTOMER' });
     expect(audits).toContainEqual({ actorType: 'customer', action: 'auth.register.succeeded' });
   });
 
-  it('never returns the password hash to the caller', async () => {
-    const { service } = serviceWith(fakeRepo());
-    const user = await service.register({ email: 'a@example.com', password: 'long enough password' });
-
-    expect(Object.keys(user).sort()).toEqual(['email', 'id', 'role']);
-  });
-
-  // A duplicate address must not be confirmed as such, or the endpoint becomes
-  // an account-enumeration oracle (invariant 9).
-  it('reports a duplicate address without admitting it is a duplicate', async () => {
+  // A taken address must be indistinguishable from a free one, or the endpoint
+  // is an account-enumeration oracle (invariant 9, ADR-006).
+  it('resolves identically for a taken address, revealing nothing', async () => {
     const duplicate = Object.assign(new Error('duplicate key'), { code: '23505' });
     const { service, audits } = serviceWith(
       fakeRepo({ insertUser: () => Promise.reject(duplicate) }),
@@ -154,15 +153,27 @@ describe('register', () => {
 
     await expect(
       service.register({ email: 'taken@example.com', password: 'long enough password' }),
-    ).rejects.toMatchObject({
-      status: 409,
-      code: 'REGISTRATION_FAILED',
-      message: 'Registration could not be completed',
-    });
+    ).resolves.toBeUndefined();
 
-    // The system still records it, so the signal is available to us and not
-    // to the caller.
-    expect(audits).toContainEqual({ actorType: 'system', action: 'auth.register.rejected' });
+    // Recorded for us, invisible to the caller.
+    expect(audits).toContainEqual({ actorType: 'system', action: 'auth.register.duplicate' });
+  });
+
+  it('hashes the password even when the address is already taken', async () => {
+    const duplicate = Object.assign(new Error('duplicate key'), { code: '23505' });
+    const hasher = fakeHasher();
+    let hashCalls = 0;
+    const counting = { ...hasher, hash: (p: string) => { hashCalls += 1; return hasher.hash(p); } };
+    const { service } = serviceWith(
+      fakeRepo({ insertUser: () => Promise.reject(duplicate) }),
+      counting as typeof hasher,
+    );
+
+    await service.register({ email: 'taken@example.com', password: 'long enough password' });
+
+    // Equal answers are undone by unequal timing: skipping the hash on the
+    // duplicate path would make a taken address measurably faster.
+    expect(hashCalls).toBe(1);
   });
 
   it('lets any other database error surface rather than masking it', async () => {
