@@ -9,7 +9,7 @@ accepted one (supersede instead).
 
 ---
 # ADR-001: Server-side sessions over JWT
-Date: <today>
+Date: 2026-09-05
 Context: KYC demands instantly revoking access (compromised/fired employee).
 JWT is stateless and can't be killed without extra revocation machinery.
 Decision: PostgreSQL sessions table; HttpOnly cookie holding a token whose
