@@ -5,10 +5,12 @@ the backend gathers evidence from OCR and authorised providers; a deterministic 
 engine turns that evidence into explainable per-check decisions; only exceptions reach
 a human review queue. Every action is audited.
 
-> **Status — M0 in progress.** Scaffold, database schema and authentication are
-> done: all ten tables exist, `audit_log` is append-only at the database level,
-> sessions revoke instantly, credential routes are rate limited, state-changing
-> requests carry a CSRF token, and 82 tests pass. Applications are next.
+> **Status — M0 in progress.** API: scaffold, database schema and authentication
+> are done — `audit_log` is append-only at the database level, sessions revoke
+> instantly, credential routes are rate limited, state-changing requests carry a
+> CSRF token, and 82 tests pass. Both front ends now exist and sign in against
+> the live API. The review queue stays empty until applications and cases land,
+> which is the next slice.
 
 ## The idea the whole design rests on
 
@@ -65,14 +67,37 @@ cd AUTO-KYC
 cp .env.example .env
 npm install
 npm run db:up
-npm run dev
+npm run db:migrate
 ```
 
-The API comes up on `http://localhost:4000`:
+Then three processes, one per terminal:
 
 ```bash
-curl http://localhost:4000/api/health
-curl http://localhost:4000/api/health/ready
+npm run dev:api        # http://localhost:4000
+npm run dev:customer   # http://localhost:3000
+npm run dev:employee   # http://localhost:3001
+```
+
+The front ends never call `localhost:4000` directly. Each proxies `/api/*` to
+the API through a Next.js rewrite, so the browser sees one origin and the
+session cookie is first-party — which is what lets it stay `SameSite=Lax` with
+no CORS anywhere (ADR-005).
+
+### One thing to know before demonstrating both at once
+
+Cookies ignore the port number. `localhost:3000` and `localhost:3001` are the
+same cookie jar, so signing into the staff dashboard replaces the customer's
+session and vice versa. The customer app notices and says so rather than
+showing a member of staff a customer screen, but you still cannot be both at
+once in one browser profile.
+
+To show both sides side by side, open one of them in a second browser profile
+or a private window. Alternatively add these to your hosts file and use the
+names instead, which gives each surface its own jar:
+
+```
+127.0.0.1  customer.localhost
+127.0.0.1  employee.localhost
 ```
 
 | Command | Does |
@@ -83,7 +108,8 @@ curl http://localhost:4000/api/health/ready
 | `npm run build` | Compile to `api/dist` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:up` / `npm run db:down` | Start / stop PostgreSQL |
-| `npm run test:integration` | Schema tests against a real PostgreSQL |
+| `npm run test:integration` | Schema and auth tests against a real PostgreSQL |
+| `npm run dev:api` / `dev:customer` / `dev:employee` | The three processes |
 
 `npm test` never touches the database, so it runs anywhere. The integration
 suite does, and needs `npm run db:up && npm run db:migrate` first.

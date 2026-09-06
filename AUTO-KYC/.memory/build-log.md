@@ -197,3 +197,39 @@ locked out.
 **Also fixed the claim, not just the code:** ADR-005 had said rate limiting
 would blunt the registration signal. With the shared limiter it would not
 have. The ADR now says what is actually true.
+
+### 2026-09-06 - Both front ends
+**What:** web-customer (:3000) and web-employee (:3001), Next.js 16 + React 19,
+sharing one visual system with a different accent so the two surfaces are
+distinguishable on sight. Register, sign in, sign out and session handling are
+real and talk to the live API. Screens for the application status, the review
+queue and case detail exist and are wired to the documented contract.
+**Why:** the demonstration surface was pulled forward to M3 because a bank buys
+the review queue. Building the shells now also settles a question ADR-005 had
+only asserted.
+**Decisions:** none new. This VALIDATES ADR-005 rather than deciding anything:
+the Next.js rewrite proxy was assumed to make the session cookie first-party,
+and that had never been tested. It does - verified end to end through :3000,
+with the cookie landing on the Next origin, httpOnly holding (document.cookie
+shows only kyc_csrf), and CSRF working from the browser's own fetch.
+**Docs touched:** README (three-process run instructions and the cookie caveat).
+**Tests:** none automated for the front ends yet - a gap, and an honest one.
+Everything was verified by driving the real UI in a browser against the live
+API and confirming rows in PostgreSQL.
+**Three things worth remembering:**
+1. Cookies ignore the port. :3000 and :3001 share a jar, so signing into the
+   staff app hijacked the customer session - the customer app cheerfully showed
+   "Signed in as reviewer@bank.example". Both apps now guard on ROLE rather
+   than trusting the cookie's owner. Found by trying it, not by reasoning.
+2. Windows does not resolve *.localhost, so the customer.localhost /
+   employee.localhost idea cannot be done by binding Next to that hostname -
+   it needs hosts entries, and only the browser resolves it.
+3. Killing `next start` by its npm wrapper leaves the real process holding the
+   port. The restart dies with EADDRINUSE and the browser keeps serving the old
+   bundle, which is indistinguishable from "my change did nothing". Cost a
+   detour chasing a phantom React bug.
+**Deliberately left empty:** the queue and the application screens show a plain
+"not built yet" panel naming the endpoint they need, rather than sample rows.
+A demonstration that shows invented cases is worth less than one that admits
+what exists - and this system's whole argument is that every decision has a
+real reason behind it.

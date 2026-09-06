@@ -8,11 +8,13 @@
     "node": ">=20.11"
   },
   "workspaces": [
-    "api"
+    "api",
+    "web-customer",
+    "web-employee"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace api",
-    "build": "npm run build --workspace api",
+    "dev": "echo \"Run each in its own terminal: npm run dev:api | dev:customer | dev:employee\"",
+    "build": "npm run build --workspace api && npm run build --workspace web-customer && npm run build --workspace web-employee",
     "start": "npm run start --workspace api",
     "test": "npm run test --workspace api",
     "typecheck": "npm run typecheck --workspace api",
@@ -20,7 +22,11 @@
     "db:migrate": "npm run db:migrate --workspace api",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "test:integration": "npm run test:integration --workspace api"
+    "test:integration": "npm run test:integration --workspace api",
+    "dev:api": "npm run dev --workspace api",
+    "dev:customer": "npm run dev --workspace web-customer",
+    "dev:employee": "npm run dev --workspace web-employee",
+    "build:api": "npm run build --workspace api"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

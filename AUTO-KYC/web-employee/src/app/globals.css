@@ -1,0 +1,317 @@
+/* KYCFlow — one visual system, two surfaces.
+   The accent is the only difference, so a demonstration audience can tell the
+   customer app from the employee dashboard at a glance. */
+
+:root {
+  --accent: #0f766e;
+  --accent-soft: #e0f2f0;
+  --accent-ink: #115e59;
+
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --border: #e3e3e7;
+  --border-strong: #cfcfd6;
+  --ink: #16161a;
+  --ink-muted: #62626d;
+  --ink-faint: #8b8b95;
+
+  --pass: #1a7f4b;
+  --pass-bg: #e8f5ee;
+  --review: #9a6700;
+  --review-bg: #fdf5e3;
+  --fail: #b42318;
+  --fail-bg: #fdeceb;
+  --pending: #5a5a66;
+  --pending-bg: #f0f0f3;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 2px rgba(16, 16, 26, 0.06), 0 1px 3px rgba(16, 16, 26, 0.04);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e0e11;
+    --surface: #17171b;
+    --border: #26262d;
+    --border-strong: #35353f;
+    --ink: #f2f2f4;
+    --ink-muted: #a1a1ad;
+    --ink-faint: #74747f;
+    --pass-bg: #10291c;
+    --review-bg: #2a2211;
+    --fail-bg: #2b1513;
+    --pending-bg: #1e1e24;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- layout */
+
+.masthead {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.masthead-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.brand:hover { text-decoration: none; }
+
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.brand-surface {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.masthead-spacer { flex: 1; }
+
+.masthead-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 24px 72px;
+}
+
+main.narrow { max-width: 480px; }
+
+/* ------------------------------------------------------------- typography */
+
+h1 { font-size: 24px; font-weight: 640; letter-spacing: -0.02em; margin: 0 0 6px; }
+h2 { font-size: 17px; font-weight: 620; letter-spacing: -0.01em; margin: 0 0 12px; }
+.lede { color: var(--ink-muted); margin: 0 0 28px; }
+
+.page-head { margin-bottom: 28px; }
+
+/* ------------------------------------------------------------------ card */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.card + .card { margin-top: 16px; }
+.card-tight { padding: 18px 20px; }
+
+/* ----------------------------------------------------------------- forms */
+
+.field { margin-bottom: 16px; }
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 560;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+input[type="text"], input[type="email"], input[type="password"], input[type="date"], select, textarea {
+  width: 100%;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.hint { font-size: 12px; color: var(--ink-faint); margin-top: 5px; }
+
+button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 560;
+  padding: 9px 16px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+button:hover:not(:disabled) { opacity: 0.9; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--ink-muted);
+  border-color: transparent;
+  padding: 6px 8px;
+}
+button.ghost:hover { color: var(--ink); }
+
+.actions { display: flex; gap: 10px; align-items: center; margin-top: 20px; }
+
+/* --------------------------------------------------------------- notices */
+
+.notice {
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  margin-bottom: 18px;
+  border: 1px solid transparent;
+}
+.notice-error { background: var(--fail-bg); color: var(--fail); border-color: color-mix(in srgb, var(--fail) 22%, transparent); }
+.notice-info { background: var(--accent-soft); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 22%, transparent); }
+.notice-muted { background: var(--pending-bg); color: var(--ink-muted); border-color: var(--border); }
+
+/* ---------------------------------------------------------------- status */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 640;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.pill-pass { background: var(--pass-bg); color: var(--pass); }
+.pill-review { background: var(--review-bg); color: var(--review); }
+.pill-fail { background: var(--fail-bg); color: var(--fail); }
+.pill-pending { background: var(--pending-bg); color: var(--pending); }
+
+/* Marks any result produced by a simulator rather than a licensed provider.
+   Invariant 10: a simulated result must never be mistakable for a real one. */
+.pill-simulated {
+  background: repeating-linear-gradient(
+    135deg, var(--pending-bg), var(--pending-bg) 5px,
+    color-mix(in srgb, var(--review) 12%, var(--pending-bg)) 5px,
+    color-mix(in srgb, var(--review) 12%, var(--pending-bg)) 10px
+  );
+  color: var(--review);
+  border: 1px dashed color-mix(in srgb, var(--review) 45%, transparent);
+}
+
+/* ----------------------------------------------------------------- table */
+
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 620;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.table td { padding: 13px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: var(--bg); }
+.table-wrap { overflow-x: auto; }
+
+.mono { font-family: var(--mono); font-size: 12.5px; color: var(--ink-muted); }
+
+/* ------------------------------------------------------------ empty state */
+
+.empty {
+  text-align: center;
+  padding: 56px 24px;
+  color: var(--ink-muted);
+}
+.empty h2 { color: var(--ink); }
+.empty p { margin: 0 auto; max-width: 42ch; }
+
+.spinner {
+  display: inline-block;
+  width: 15px; height: 15px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ------------------------------------------------------------------ misc */
+
+.rows { display: grid; gap: 14px; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 620px) { .row-2 { grid-template-columns: 1fr; } }
+
+dl.facts { margin: 0; display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 9px 20px; font-size: 14px; }
+dl.facts dt { color: var(--ink-muted); }
+dl.facts dd { margin: 0; }

@@ -105,6 +105,17 @@ What is still outstanding, and why:
   so every request gets its own connection. They use per-run unique emails and
   delete their users afterwards instead. The audit rows they create stay,
   because audit_log is append-only - which is the point of it.
+- Cookies IGNORE THE PORT. localhost:3000 and localhost:3001 share one jar, so
+  signing into the staff dashboard replaces the customer session. Both apps now
+  guard on role rather than trusting whoever the cookie belongs to. For a
+  side-by-side demonstration use two browser profiles, or hosts entries for
+  customer.localhost / employee.localhost - Windows does NOT resolve *.localhost
+  on its own, so binding Next to that hostname fails; only the browser resolves
+  it, so the hosts entries are needed.
+- Killing a `next start` means killing the NEXT process, not the npm wrapper.
+  Killing the wrapper leaves the port bound, the restart dies with EADDRINUSE,
+  and the browser quietly keeps serving the OLD bundle - which looks exactly
+  like a code change that did not work.
 - Two rate limiters, not one, and the reason is easy to undo by accident.
   Login uses skipSuccessfulRequests so a shared office address is not locked
   out. Registration must NOT, because it always answers 202 and so has no
