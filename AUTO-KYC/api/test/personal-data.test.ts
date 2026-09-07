@@ -139,3 +139,57 @@ describe('a draft', () => {
     expect(parsed).toEqual({ fullName: 'Priya Nair' });
   });
 });
+
+describe('a draft with blanks and a half-filled address', () => {
+  // This is the bug the form found. Building the draft schema with .partial()
+  // alone leaves the address itself fully required, so a customer who had
+  // typed one line of their address could not save at all.
+  it('accepts an address with only one line filled in', () => {
+    const parsed = PartialPersonalDataSchema.safeParse({
+      address: { line1: '42 MG Road' },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('accepts an address whose remaining boxes are blank', () => {
+    const parsed = PartialPersonalDataSchema.safeParse({
+      address: { line1: '42 MG Road', city: '', state: '', postalCode: '' },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('accepts every field blank, which is what an untouched form looks like', () => {
+    const parsed = PartialPersonalDataSchema.safeParse({
+      fullName: '',
+      dateOfBirth: '',
+      pan: '',
+      address: { line1: '', line2: '', city: '', state: '', postalCode: '' },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  // A blank is how a customer clears something. The stored object is replaced
+  // by what arrives, so an empty value genuinely removes the old one.
+  it('keeps validating a value that is present and not blank', () => {
+    expect(PartialPersonalDataSchema.safeParse({ pan: '' }).success).toBe(true);
+    expect(PartialPersonalDataSchema.safeParse({ pan: 'nonsense' }).success).toBe(false);
+    expect(PartialPersonalDataSchema.safeParse({ dateOfBirth: '2026-02-30' }).success).toBe(false);
+    expect(
+      PartialPersonalDataSchema.safeParse({ address: { postalCode: '12345' } }).success,
+    ).toBe(false);
+  });
+
+  // Blanks are fine in a draft and never fine at submit. That split is the
+  // whole reason there are two schemas.
+  it('is still rejected by the complete schema', () => {
+    expect(reject({ ...COMPLETE, fullName: '' })).toContain('fullName');
+    expect(reject({ ...COMPLETE, address: { ...COMPLETE.address, city: '' } })).toContain(
+      'address.city',
+    );
+  });
+
+  it('normalises a PAN typed in lower case on a draft save', () => {
+    const parsed = PartialPersonalDataSchema.parse({ pan: 'abcde1234f' });
+    expect(parsed.pan).toBe('ABCDE1234F');
+  });
+});

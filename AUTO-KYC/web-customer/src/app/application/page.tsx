@@ -1,50 +1,80 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { ApplicationForm } from '@/components/ApplicationForm';
 import { Masthead } from '@/components/Masthead';
-import { ApiError, api } from '@/lib/api';
+import {
+  ApiError,
+  createApplication,
+  listApplications,
+  type Application,
+  type ApplicationStatus,
+} from '@/lib/api';
 import { useSession } from '@/lib/session';
-
-/** The shape docs/endpoint-contract.md promises. Not yet served — see below. */
-interface Application {
-  id: string;
-  status:
-    | 'draft'
-    | 'submitted'
-    | 'verifying'
-    | 'verification_pending'
-    | 'review'
-    | 'verified'
-    | 'rejected';
-  submittedAt: string | null;
-}
 
 /**
  * Customer-facing status wording.
  *
  * Deliberately soft, and deliberately incapable of naming which check caused a
  * problem (invariant 9). "We are reviewing your application" covers a fuzzy
- * name match, a provider outage and a genuine mismatch alike — the customer
- * cannot use this page to work out which, so it cannot be used to probe.
+ * name match, a provider outage and a genuine mismatch alike, so the customer
+ * cannot use this page to work out which and therefore cannot use it to probe.
  */
-const STATUS_COPY: Record<Application['status'], { pill: string; label: string; blurb: string }> = {
-  draft: { pill: 'pill-pending', label: 'Not submitted', blurb: 'Finish your details and submit when you are ready.' },
-  submitted: { pill: 'pill-pending', label: 'Submitted', blurb: 'We have your application and will start checks shortly.' },
-  verifying: { pill: 'pill-pending', label: 'In progress', blurb: 'We are running the usual identity checks. This is normally quick.' },
-  verification_pending: { pill: 'pill-pending', label: 'In progress', blurb: 'We are experiencing a short delay. Nothing is needed from you.' },
-  review: { pill: 'pill-review', label: 'Being reviewed', blurb: 'One of our team is looking at your application.' },
-  verified: { pill: 'pill-pass', label: 'Approved', blurb: 'Your account is open. Welcome.' },
-  rejected: { pill: 'pill-fail', label: 'Not approved', blurb: 'We are not able to open an account at this time.' },
+const STATUS_COPY: Record<ApplicationStatus, { pill: string; label: string; blurb: string }> = {
+  draft: {
+    pill: 'pill-pending',
+    label: 'Not submitted',
+    blurb: 'Finish your details and submit when you are ready.',
+  },
+  submitted: {
+    pill: 'pill-pending',
+    label: 'Submitted',
+    blurb: 'We have your application and will start the checks shortly.',
+  },
+  verifying: {
+    pill: 'pill-pending',
+    label: 'In progress',
+    blurb: 'We are running the usual identity checks. This is normally quick.',
+  },
+  verification_pending: {
+    pill: 'pill-pending',
+    label: 'In progress',
+    blurb: 'We are experiencing a short delay. Nothing is needed from you.',
+  },
+  review: {
+    pill: 'pill-review',
+    label: 'Being reviewed',
+    blurb: 'One of our team is looking at your application.',
+  },
+  verified: {
+    pill: 'pill-pass',
+    label: 'Approved',
+    blurb: 'Your account is open. Welcome.',
+  },
+  rejected: {
+    pill: 'pill-fail',
+    label: 'Not approved',
+    blurb: 'We are not able to open an account at this time.',
+  },
 };
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </>
+  );
+}
 
 export default function ApplicationPage() {
   const session = useSession();
   const router = useRouter();
   const [application, setApplication] = useState<Application | null>(null);
-  const [pendingApi, setPendingApi] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (session.status === 'signed-out') router.replace('/login');
@@ -52,19 +82,36 @@ export default function ApplicationPage() {
 
   const wrongSurface = session.status === 'signed-in' && session.user.role !== 'CUSTOMER';
 
+  const load = useCallback(() => {
+    listApplications()
+      .then(({ applications }) => setApplication(applications[0] ?? null))
+      .catch((caught) =>
+        setError(
+          caught instanceof ApiError ? caught.message : 'Could not load your application.',
+        ),
+      )
+      .finally(() => setLoaded(true));
+  }, []);
+
   useEffect(() => {
     if (session.status !== 'signed-in' || wrongSurface) return;
+    load();
+  }, [session.status, wrongSurface, load]);
 
-    api<{ applications: Application[] }>('/api/applications/me')
-      .then(({ applications }) => setApplication(applications[0] ?? null))
-      .catch((caught) => {
-        // The applications API is M0 slice 4 and is not built yet. Rather than
-        // mock a screen that would lie to a demonstration audience, say so.
-        if (caught instanceof ApiError && caught.status === 404) setPendingApi(true);
-        else setError(caught instanceof ApiError ? caught.message : 'Could not load your application.');
-      })
-      .finally(() => setLoaded(true));
-  }, [session.status, wrongSurface]);
+  async function start() {
+    setStarting(true);
+    setError(null);
+    try {
+      const { application: created } = await createApplication();
+      setApplication(created);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : 'Could not start an application.',
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
 
   if (session.status !== 'signed-in') {
     return (
@@ -77,6 +124,7 @@ export default function ApplicationPage() {
   }
 
   const copy = application ? STATUS_COPY[application.status] : null;
+  const isDraft = application?.status === 'draft';
 
   return (
     <>
@@ -98,8 +146,8 @@ export default function ApplicationPage() {
           <div className="card">
             <h2>This is the customer app</h2>
             <p style={{ color: 'var(--ink-muted)', marginTop: 0 }}>
-              You are signed in as a member of staff, who has no application of their own. Use
-              the staff dashboard to review applications.
+              You are signed in as a member of staff, who has no application of their own.
+              Use the staff dashboard to review applications.
             </p>
           </div>
         )}
@@ -116,52 +164,85 @@ export default function ApplicationPage() {
           </div>
         )}
 
-        {pendingApi && !wrongSurface && (
+        {loaded && !wrongSurface && !application && (
           <div className="card">
-            <h2>Not built yet</h2>
+            <h2>Ready when you are</h2>
             <p style={{ color: 'var(--ink-muted)', marginTop: 0 }}>
-              This screen is wired to <span className="mono">GET /api/applications/me</span>, which
-              is M0 slice 4 and does not exist yet. It is left honest rather than filled with
-              invented data — a demonstration should never show a screen that cannot happen.
-            </p>
-            <p style={{ color: 'var(--ink-muted)' }}>
-              Sign-in, sign-out and session handling above are real and talk to the live API.
-            </p>
-          </div>
-        )}
-
-        {loaded && !pendingApi && !wrongSurface && !application && (
-          <div className="card">
-            <h2>No application yet</h2>
-            <p style={{ color: 'var(--ink-muted)', marginTop: 0 }}>
-              Start one and we will guide you through it.
+              You will need your PAN and your current address. It takes a few minutes and
+              you can save and come back at any point.
             </p>
             <div className="actions">
-              <button type="button" disabled>
-                Start application
+              <button type="button" onClick={start} disabled={starting}>
+                {starting ? 'Starting…' : 'Start application'}
               </button>
             </div>
           </div>
         )}
 
         {application && copy && (
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <h2 style={{ margin: 0 }}>Status</h2>
-              <span className={`pill ${copy.pill}`}>{copy.label}</span>
+          <>
+            <div className="card card-tight">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0 }}>Status</h2>
+                <span className={`pill ${copy.pill}`}>{copy.label}</span>
+                <span style={{ color: 'var(--ink-muted)', fontSize: 14 }}>{copy.blurb}</span>
+              </div>
             </div>
-            <p style={{ color: 'var(--ink-muted)', margin: 0 }}>{copy.blurb}</p>
-            <dl className="facts" style={{ marginTop: 20 }}>
-              <dt>Reference</dt>
-              <dd className="mono">{application.id}</dd>
-              {application.submittedAt && (
-                <>
-                  <dt>Submitted</dt>
-                  <dd>{new Date(application.submittedAt).toLocaleString('en-GB')}</dd>
-                </>
-              )}
-            </dl>
-          </div>
+
+            {isDraft ? (
+              <ApplicationForm application={application} onChanged={setApplication} />
+            ) : (
+              <div className="card">
+                <h2>What you submitted</h2>
+                <p style={{ color: 'var(--ink-muted)', marginTop: -6 }}>
+                  This is a record of the details we are checking. It can no longer be
+                  changed.
+                </p>
+                <dl className="facts">
+                  <Detail label="Reference" value={application.id} />
+                  {application.personalData.fullName && (
+                    <Detail label="Name" value={application.personalData.fullName} />
+                  )}
+                  {application.personalData.dateOfBirth && (
+                    <Detail
+                      label="Date of birth"
+                      value={new Date(application.personalData.dateOfBirth).toLocaleDateString(
+                        'en-GB',
+                        { day: 'numeric', month: 'long', year: 'numeric' },
+                      )}
+                    />
+                  )}
+                  {application.personalData.pan && (
+                    <Detail label="PAN" value={application.personalData.pan} />
+                  )}
+                  {application.personalData.address && (
+                    <Detail
+                      label="Address"
+                      value={[
+                        application.personalData.address.line1,
+                        application.personalData.address.line2,
+                        application.personalData.address.city,
+                        application.personalData.address.state,
+                        application.personalData.address.postalCode,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    />
+                  )}
+                  <Detail
+                    label="Consent"
+                    value={application.consentRecorded ? 'Recorded' : 'Not recorded'}
+                  />
+                  {application.submittedAt && (
+                    <Detail
+                      label="Submitted"
+                      value={new Date(application.submittedAt).toLocaleString('en-GB')}
+                    />
+                  )}
+                </dl>
+              </div>
+            )}
+          </>
         )}
       </main>
     </>

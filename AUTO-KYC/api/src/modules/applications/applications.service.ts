@@ -190,6 +190,13 @@ export function createApplicationsService(deps: {
           400,
           'INCOMPLETE',
           `Some details are still needed: ${missing.join(', ')}`,
+          // Same shape as a validation failure, so the form marks the missing
+          // inputs instead of printing a list the customer has to read and
+          // then hunt for.
+          complete.error.issues.map((issue) => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          })),
         );
       }
 

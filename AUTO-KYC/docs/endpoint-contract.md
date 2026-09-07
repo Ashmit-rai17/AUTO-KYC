@@ -40,6 +40,12 @@ about anyone else, and withholding it would make the form unusable.
 
 ## Conventions
 - All routes under /api. JSON in/out. Errors: { error: { code, message } }.
+- A validation or completeness failure also carries
+  `error.fields: [{ field, message }]`, where `field` is a dotted path such as
+  `personalData.pan` or `address.postalCode`. The joined `message` stays for
+  callers that only want a sentence (curl, logs); `fields` is what a form needs
+  in order to mark the offending input rather than print one long string above
+  it. Additive, so existing callers are unaffected.
 - Auth = [C]ustomer | [E]mployee | [A]dmin | [S]ystem worker.
 - Every route marked ✅ passes the 5-step security checklist.
 
@@ -66,6 +72,15 @@ about anyone else, and withholding it would make the form unusable.
 - A **draft may be incomplete.** PATCH accepts any subset of personalData and
   MERGES it, so a form can be saved half-filled. Completeness is checked once,
   at submit, which answers 400 INCOMPLETE naming the fields still needed.
+- A draft also accepts a **blank string** for any field, and a **partly filled
+  address**. A blank means "not reached yet", and sending one is how a customer
+  CLEARS something entered earlier. A value that is present and not blank is
+  still validated, so a malformed PAN is caught while typing rather than at
+  submit. Blanks are never acceptable at submit; that split is why there are
+  two schemas.
+- The merge is TOP LEVEL only. Sending `{ address: { city } }` replaces the
+  whole address object, so a client changing one line must send the whole
+  address or it will discard the others.
 - `status`, `consentId` and `submittedAt` are not writable. Unknown keys are
   stripped, so sending `{"status":"verified"}` changes nothing.
 - **submit → submitted**, not verifying. The verification worker advances it

@@ -267,3 +267,43 @@ customer who has consented cannot be removed at all. The design doing exactly
 what ADR-003 asked. But it means this schema cannot honour an erasure request
 for a consented customer, which is a position to hold deliberately rather than
 discover. Recorded as carried debt.
+
+### 2026-09-07 - The customer application form
+**What:** The form a customer actually fills in: start, save as you go, consent,
+submit, then a read-only record. 144 tests pass (61 unit, 83 integration).
+**Why:** checking whether the app worked turned up a gap. The applications API
+was complete and tested, but the Start button in the browser was still disabled
+from when the API did not exist, and there was no form behind it. So the API
+could open an account and a person could not.
+**Decisions:** no new ADR. One additive contract change: a validation or
+completeness failure now also returns `error.fields: [{field, message}]`. The
+form maps those dotted paths onto inputs, which keeps the Zod schema the single
+source of truth instead of copying the rules into the browser where they would
+drift.
+**Docs touched:** endpoint-contract (the fields envelope, blank and partial
+address semantics, and the top-level merge warning).
+**Tests:** six new schema tests, all pinning the bug below.
+**Two bugs found by building the form, both of which the API tests had missed
+because they only ever sent complete or clearly-invalid data:**
+1. `PersonalDataSchema.partial()` makes the TOP-LEVEL keys optional and leaves
+   the address object fully required. A customer who had typed one line of
+   their address could not save at all - the draft promise was broken for the
+   address specifically. The schema now composes both shapes from shared field
+   rules, and a draft accepts blanks and a partly filled address. A blank is
+   also how a customer clears a field, since the server replaces the address
+   key rather than merging into it.
+2. Recording consent BEFORE submitting left a consent row behind for every
+   failed attempt. Proven, not suspected: three failed submits produced three
+   consent rows, and because consents is append-only they cannot be removed -
+   the one table that exists to be trustworthy evidence was filling with events
+   that never happened. Now the submit is attempted first and consent is
+   recorded only if the server answers CONSENT_REQUIRED, which it checks after
+   completeness, so that code can only mean everything else is already in
+   order. Verified: two failed submits leave zero consent rows, and a
+   successful one leaves exactly one.
+**Verified end to end in a real browser:** register, sign in, start, save a
+half-filled form, a malformed PAN marking only the PAN box, two rejected
+submits marking exactly the missing fields, then a successful submit. The
+application row, the single consent record and the audit trail were all checked
+in PostgreSQL afterwards. The audit shows only the fields actually changed per
+save, which is the diffing working.

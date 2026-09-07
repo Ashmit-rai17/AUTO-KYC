@@ -22,6 +22,9 @@ and has a test. Mock providers only. No document uploads - those are M2.
       Ownership as a WHERE clause answering 404 not 403, ADR-007.
 - [ ] **cases** - employee queue, detail, resolution.  <- NEXT
 - [ ] **notifications** - status strings only in M0.
+- [x] **customer application form** - pulled forward out of M3, because
+      the API was complete and tested while no customer could reach it
+      through a browser.
 
 ## Context that changes the target
 This is being built to DEMONSTRATE to a bank, and then be deployed by one.
@@ -143,3 +146,15 @@ What is still outstanding, and why:
   clobbered `$B` holding a base URL. And `Go ... | Out-Null` swallows the
   function's Write-Output logging along with its return value - use Write-Host
   for logs inside a function whose result gets piped away.
+- The customer form is wired to the API's structured field errors
+  (error.fields), NOT to a copy of the validation rules in the browser. The Zod
+  schema stays the single source of truth; the form just maps dotted paths onto
+  inputs. Do not reintroduce client-side rule copies, they drift.
+- Record consent AFTER a submit attempt fails with CONSENT_REQUIRED, never
+  before. The server checks completeness first, so that code can only mean
+  everything else is in order. Doing it the obvious way round left a consent
+  row behind for every failed attempt, and consents is append-only so they
+  could never be removed.
+- The draft schema must accept blank strings and a partly filled address.
+  Building it with .partial() alone leaves the address itself fully required,
+  which silently makes save-as-you-go impossible for the address.

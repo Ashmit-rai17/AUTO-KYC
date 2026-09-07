@@ -24,5 +24,6 @@ export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
     400,
     'VALIDATION_ERROR',
     `Invalid request: ${fields.map((f) => `${f.field} ${f.message}`).join('; ')}`,
+    fields,
   );
 }

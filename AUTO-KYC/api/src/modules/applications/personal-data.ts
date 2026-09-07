@@ -40,7 +40,13 @@ function completedYearsSince(value: string): number {
   return years;
 }
 
-const DateOfBirthSchema = z
+// ------------------------------------------------------------ field rules
+// Defined once, then composed into both schemas below, so the two can never
+// drift apart on what a valid PAN or a valid date of birth looks like.
+
+const FullName = z.string().trim().min(1, 'is required').max(140);
+
+const DateOfBirth = z
   .string()
   .trim()
   .regex(ISO_DATE, 'must be a date in YYYY-MM-DD form')
@@ -51,17 +57,42 @@ const DateOfBirthSchema = z
   .refine((value) => completedYearsSince(value) >= 18, 'must be at least 18 years old')
   .refine((value) => completedYearsSince(value) <= 120, 'must be a plausible date of birth');
 
+const Pan = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(PAN_PATTERN, 'must look like ABCDE1234F');
+
+const Line = z.string().trim().min(1, 'is required').max(120);
+const Town = z.string().trim().min(1, 'is required').max(80);
+const PostalCode = z.string().trim().regex(PIN_PATTERN, 'must be a six-digit PIN code');
+
+/**
+ * Accepts an empty string as well as a valid value.
+ *
+ * A draft is whatever the customer has typed so far, and a box they have not
+ * reached yet is empty rather than absent. Allowing "" means a half-filled form
+ * can be saved, and sending "" is also how a customer CLEARS something they
+ * entered earlier: the stored object is replaced by what arrives, so an empty
+ * value genuinely removes the old one.
+ *
+ * A value that is present and not empty is still validated, so the customer
+ * finds out their PAN is malformed while typing it rather than at submit.
+ */
+function orBlank<T extends z.ZodType<string>>(schema: T) {
+  return z.union([z.literal(''), schema]);
+}
+
 const AddressSchema = z.object({
-  line1: z.string().trim().min(1, 'is required').max(120),
+  line1: Line,
   line2: z.string().trim().max(120).optional(),
-  city: z.string().trim().min(1, 'is required').max(80),
-  state: z.string().trim().min(1, 'is required').max(80),
-  postalCode: z.string().trim().regex(PIN_PATTERN, 'must be a six-digit PIN code'),
+  city: Town,
+  state: Town,
+  postalCode: PostalCode,
 });
 
 /**
- * What a COMPLETE application must contain. Enforced at submit, not before —
- * see the partial schema below.
+ * What a COMPLETE application must contain. Enforced at submit, not before.
  *
  * Note what is absent: no Aadhaar number. Aadhaar is verified from a
  * UIDAI-signed offline e-KYC file (ADR-004) and the number itself must never
@@ -69,24 +100,34 @@ const AddressSchema = z.object({
  * identifier the PAN provider is asked about, so it has to be stored.
  */
 export const PersonalDataSchema = z.object({
-  fullName: z.string().trim().min(1, 'is required').max(140),
-  dateOfBirth: DateOfBirthSchema,
-  pan: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(PAN_PATTERN, 'must look like ABCDE1234F'),
+  fullName: FullName,
+  dateOfBirth: DateOfBirth,
+  pan: Pan,
   address: AddressSchema,
 });
 
 /**
- * What a DRAFT may contain: any subset.
+ * What a DRAFT may contain: any subset, any box still blank, and a partly
+ * filled address.
  *
- * A person filling in a form should be able to save half of it and come back,
- * so completeness is checked once, at submit. Validating the full shape on
- * every PATCH would make the draft state useless.
+ * Building this with `.partial()` alone was a bug. That makes the top-level
+ * keys optional but leaves the address itself fully required, so a customer
+ * who had typed one line of their address could not save at all.
  */
-export const PartialPersonalDataSchema = PersonalDataSchema.partial();
+export const PartialPersonalDataSchema = z.object({
+  fullName: orBlank(FullName).optional(),
+  dateOfBirth: orBlank(DateOfBirth).optional(),
+  pan: orBlank(Pan).optional(),
+  address: z
+    .object({
+      line1: orBlank(Line).optional(),
+      line2: z.string().trim().max(120).optional(),
+      city: orBlank(Town).optional(),
+      state: orBlank(Town).optional(),
+      postalCode: orBlank(PostalCode).optional(),
+    })
+    .optional(),
+});
 
 export type PersonalData = z.infer<typeof PersonalDataSchema>;
 export type PartialPersonalData = z.infer<typeof PartialPersonalDataSchema>;
