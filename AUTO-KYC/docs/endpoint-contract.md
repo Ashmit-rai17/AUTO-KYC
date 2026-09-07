@@ -55,9 +55,27 @@ about anyone else, and withholding it would make the form unusable.
 | POST /api/applications | C | ownership=creator | create app (draft) ✅ |
 | GET /api/applications/me | C | session | list own apps ✅ |
 | GET /api/applications/:id | C | owner | view own app ✅ |
-| PATCH /api/applications/:id | C | owner + state=draft | edit data ✅ |
+| PATCH /api/applications/:id | C | owner + state=draft | merge partial data ✅ |
 | POST /api/applications/:id/consent | C | owner + draft | record consent ✅ |
-| POST /api/applications/:id/submit | C | owner + draft + consent | submit → VERIFYING ✅ |
+| POST /api/applications/:id/submit | C | owner + draft + consent + complete | submit → SUBMITTED ✅ |
+
+## Applications: ownership and drafts (ADR-007)
+- Ownership failures are **404, never 403**. A stranger's application, a
+  made-up id and a malformed id are indistinguishable. A 403 would confirm the
+  application exists and belongs to someone.
+- A **draft may be incomplete.** PATCH accepts any subset of personalData and
+  MERGES it, so a form can be saved half-filled. Completeness is checked once,
+  at submit, which answers 400 INCOMPLETE naming the fields still needed.
+- `status`, `consentId` and `submittedAt` are not writable. Unknown keys are
+  stripped, so sending `{"status":"verified"}` changes nothing.
+- **submit → submitted**, not verifying. The verification worker advances it
+  from there (M1). The state machine in docs/rules-engine.md is the source.
+- One in-flight application per customer; 409 APPLICATION_IN_PROGRESS
+  otherwise. A verified or rejected application does not block a new one.
+- Error codes: NOT_FOUND, NOT_EDITABLE, CONSENT_REQUIRED, INCOMPLETE,
+  APPLICATION_IN_PROGRESS.
+- These routes are CUSTOMER-only. Staff read an application through its case,
+  which carries its own authorisation.
 
 ## Documents
 | POST /api/applications/:id/document-upload-url | C | owner | signed PUT url (10 min, one key) ✅ |

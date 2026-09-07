@@ -8,6 +8,7 @@
 | 004 | Providers are contract simulators; Aadhaar signature path is real | Accepted |
 | 005 | argon2id for passwords; Lax cookie behind a same-origin proxy | Accepted |
 | 006 | Rate limiting, CSRF tokens, and a silent registration | Accepted |
+| 007 | Ownership as a WHERE clause; drafts may be incomplete | Accepted |
 
 Format: context → decision → consequences. Append new ADRs; never edit an
 accepted one (supersede instead).
@@ -249,3 +250,60 @@ next login fails with the ordinary 401 and they have no way forward. The
 answer is a password-reset flow, which needs an email provider. That provider
 should follow ADR-004 and ship with a simulator so the flow is demonstrable
 before any mail is actually sent.
+
+---
+# ADR-007: Applications - ownership, drafts, and what submit means
+Date: 2026-09-07
+Context: the six application routes are the first with real ownership, step 3
+of the security checklist. docs/endpoint-contract.md lists them but leaves the
+shape of personal_data, the meaning of a draft, and how ownership is enforced
+unspecified. It also says submit moves an application to VERIFYING, which
+contradicts the state machine in docs/rules-engine.md.
+Decision:
+- Ownership is a WHERE clause, not a check performed alongside one. Every
+  statement is scoped by user_id, so a stranger's application matches no row.
+- Ownership failures answer 404, NEVER 403. A 403 confirms the application
+  exists and belongs to someone, which is the disclosure invariant 9 forbids.
+  Because ownership lives in the WHERE clause there is no branch that could
+  answer 403 by accident.
+- A malformed path id also answers 404, and this fixed a bug rather than
+  tidying one. applications.id is a uuid column, so passing "banana" raises
+  "invalid input syntax for type uuid" and would have surfaced as a 500 - both
+  an error report and a way to distinguish "not an id" from "not yours". Ids
+  are now validated against the UUID form before they reach SQL.
+- A DRAFT may be incomplete; completeness is checked once, at submit. A person
+  filling in a form has to be able to save half of it and come back, so
+  validating the full shape on every PATCH would make the draft state useless.
+- PATCH merges rather than replaces (jsonb `||`), so a save-as-you-go form
+  cannot silently discard earlier answers. Unknown keys are stripped by the
+  schema, so `{"status":"verified"}` is discarded rather than honoured - the
+  same mass-assignment defence that stops register granting itself a role.
+- The audit row for an edit records which FIELDS changed and never their
+  values. audit_log can never be edited or deleted, so copying the customer's
+  name, date of birth and PAN into it on every keystroke would create a
+  second, permanent, unredactable copy of their identity.
+- One in-flight application per customer. A verified or rejected application
+  does not block a fresh attempt.
+- submit sets status to SUBMITTED, not VERIFYING, and the endpoint contract has
+  been corrected. docs/rules-engine.md lists submitted as a distinct state and
+  is the more specific source; advancing to verifying belongs to the
+  verification worker, which does not exist until M1. Claiming VERIFYING here
+  would mean claiming work nothing performs.
+- personal_data holds fullName, dateOfBirth, pan and a structured address. PAN
+  is validated for FORM only - the fourth character encodes holder type and
+  constraining it to P would refuse companies and trusts, and whether the
+  number exists is the provider's job. Date of birth must be a real date and
+  the applicant at least 18, which is eligibility rather than matching and so
+  belongs on the input. There is deliberately NO Aadhaar number field.
+- Every consent row stores CONSENT_VERSION. "They consented" is not evidence
+  without knowing what they consented to.
+Consequences: + a customer cannot learn anything about another customer's
+application through this API, by status code or by error shape;
++ the guards sit in the WHERE clause, so a race cannot half-apply an edit;
+- one finding that is not a bug and should be a decision someone makes
+knowingly: consents.user_id is ON DELETE RESTRICT and consents is append-only,
+so a customer who has ever consented CANNOT BE DELETED. The foreign key
+refuses it and the consent row cannot be cleared out of the way. This schema
+therefore cannot honour an erasure request for a consented customer. Statutory
+KYC retention makes that defensible, but it is a conscious position rather than
+an accident, and a bank's privacy reviewer will ask about it.

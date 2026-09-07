@@ -3,7 +3,18 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'] },
+  {
+    // .next and out hold generated bundles. Without them here, adding the
+    // front ends turned `npm run lint` into thousands of errors about code
+    // nobody wrote.
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/.next/**',
+      '**/out/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

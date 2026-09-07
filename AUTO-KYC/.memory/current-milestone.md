@@ -18,8 +18,9 @@ and has a test. Mock providers only. No document uploads - those are M2.
       integration tests against a real PostgreSQL. Shape in ADR-003.
 - [x] **auth** - register / login / logout / me, session middleware,
       role guard. argon2id + Lax cookie behind a same-origin proxy, ADR-005.
-- [ ] **applications** - create, patch, consent, submit.  <- NEXT
-- [ ] **cases** - employee queue, detail, resolution.
+- [x] **applications** - create, list, get, patch, consent, submit.
+      Ownership as a WHERE clause answering 404 not 403, ADR-007.
+- [ ] **cases** - employee queue, detail, resolution.  <- NEXT
 - [ ] **notifications** - status strings only in M0.
 
 ## Context that changes the target
@@ -54,20 +55,25 @@ AGENTS.md gained invariant 10 (a simulated result must never be mistakable
 for a real one) and invariant 7 now covers Aadhaar.
 
 ## Next slice
-**Applications.** Six routes: create, list own, get own, patch, consent,
-submit. This is the first slice with real OWNERSHIP checks - step 3 of the
-security checklist, which auth only stubbed out because /auth/me is
-self-referential by definition.
+**Cases.** Three routes: GET /api/cases (the queue), GET /api/cases/:id (detail
+with checks and reasons), POST /api/cases/:id/resolution (approve / reject /
+request more information, with a reason).
 
-Watch for:
-1. The database already refuses a submitted application without a consent_id
-   (ADR-003). The submit route must produce a clean 4xx rather than letting
-   that CHECK surface as a 500.
-2. PATCH must be rejected unless the application is still `draft`, and the
-   status must never be settable from the request body - the same
-   mass-assignment hole that register defends against with a fixed role.
-3. Ownership failures should answer 404, not 403. Confirming that someone
-   else's application exists is the same enumeration leak invariant 9 forbids.
+This is the mirror of the applications slice. Applications were CUSTOMER-only
+and scoped by user_id; cases are EMPLOYEE/ADMIN and scoped by case access. The
+question to settle first is what "case access" means, because docs/AGENTS.md
+says employees act on cases "assigned/authorized to them" without defining it:
+1. Any employee may open any case, or only the assignee, or unassigned-plus-own?
+   A queue nobody can pick work from is useless, so some form of claiming is
+   needed. Probably: unassigned cases are visible to all, assigning one to
+   yourself makes it yours, and an ADMIN can reassign.
+2. A resolution must write a case_events row, and case_events is APPEND-ONLY -
+   so a resolution cannot be edited or undone. That is right for an audit
+   trail, but it means "approve" is irreversible and the UI has to say so.
+
+Worth knowing before starting: nothing creates a case yet. The verification
+worker does that, and it is M1. So this slice can be built and tested against
+cases inserted directly, but the queue only fills for real once M1 lands.
 
 ## Carried debt
 Cleared on 6 September 2026 by ADR-006: rate limiting, CSRF tokens, and a
@@ -82,6 +88,12 @@ What is still outstanding, and why:
   forward. The fix is a reset flow, which needs an email provider. That
   provider should follow ADR-004 and ship with a simulator so the flow can be
   demonstrated before any mail is actually sent.
+- **A consented customer cannot be deleted.** consents.user_id is ON DELETE
+  RESTRICT and consents is append-only, so the delete is refused and the
+  consent row cannot be moved aside. This schema therefore cannot honour an
+  erasure request for anyone who consented. Statutory KYC retention makes it
+  defensible, but it is a position rather than an accident and a privacy
+  reviewer will ask. Found because a test could not clean up after itself.
 - **Rate-limit store is in-memory**, so the limit multiplies by instance count
   behind more than one API instance. Correct for the demonstration; must move
   to a shared store before it is not.
@@ -124,3 +136,10 @@ What is still outstanding, and why:
 - CSRF is gated on "does this request carry a session cookie", not on a list
   of exempt paths. New routes are covered automatically; nothing to keep in
   sync.
+- ESLint must ignore **/.next/** and **/out/**. Adding the front ends turned
+  `npm run lint` into 6800 errors about generated bundles, and lint had been
+  clean only because those directories did not exist yet.
+- PowerShell variables are CASE-INSENSITIVE. `$b` for a session silently
+  clobbered `$B` holding a base URL. And `Go ... | Out-Null` swallows the
+  function's Write-Output logging along with its return value - use Write-Host
+  for logs inside a function whose result gets piped away.

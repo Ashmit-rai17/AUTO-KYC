@@ -19,6 +19,13 @@ const EnvSchema = z.object({
   ARGON2_MEMORY_KIB: z.coerce.number().int().min(19456).default(65536),
   ARGON2_TIME_COST: z.coerce.number().int().min(2).default(3),
 
+  /**
+   * Which version of the consent wording a customer agreed to. Stored on every
+   * consent row, because "they consented" is worthless as evidence without
+   * knowing WHAT they consented to.
+   */
+  CONSENT_VERSION: z.string().min(1).default('kycflow-consent-2026-09'),
+
   // Rate limiting (ADR-006).
   //
   // Note the enum rather than z.coerce.boolean(): coercion would read the

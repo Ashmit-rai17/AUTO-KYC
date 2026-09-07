@@ -233,3 +233,37 @@ API and confirming rows in PostgreSQL.
 A demonstration that shows invented cases is worth less than one that admits
 what exists - and this system's whole argument is that every decision has a
 real reason behind it.
+
+### 2026-09-07 - M0 slice 4: applications
+**What:** All six application routes - create, list own, get own, patch,
+consent, submit - plus the personal-data schema. 138 tests now pass (55 unit,
+83 integration).
+**Why:** first slice with real ownership, which is step 3 of the security
+checklist and the thing every later route depends on.
+**Decisions:** ADR-007. The one worth repeating: ownership is a WHERE clause
+rather than a check performed next to one, and failures answer 404 rather than
+403. Because the scoping lives in the SQL there is no branch that COULD answer
+403 and thereby confirm a stranger's application exists - the safe behaviour is
+structural instead of remembered.
+**Docs touched:** adr (ADR-007), endpoint-contract (submit now says SUBMITTED,
+plus the ownership and draft rules).
+**Corrected a doc rather than matching it:** the contract said submit moves an
+application to VERIFYING, which contradicts the state machine in
+rules-engine.md and would have claimed work nothing performs - the verification
+worker is M1. submit now sets `submitted` and the contract says so.
+**Tests:** the ownership ones are the point. Bob asking for Alice's
+application, for a made-up uuid, and for "banana" all return byte-identical
+404s. Also pinned: PATCH merges rather than replaces, a status in the body is
+discarded, and the audit row for an edit records field NAMES and never values.
+**A real bug caught by the type checker:** Express 5 types req.params as
+possibly-array, and chasing that surfaced something worse - applications.id is
+a uuid column, so an unparseable id would have reached PostgreSQL, raised
+"invalid input syntax for type uuid", and surfaced as a 500. That is both an
+error report and a way to tell "not an id" from "not yours". Ids are now
+validated before they reach SQL and answer 404 like everything else.
+**A finding that is not a bug:** the test could not delete its own users -
+consents.user_id is ON DELETE RESTRICT and consents is append-only, so a
+customer who has consented cannot be removed at all. The design doing exactly
+what ADR-003 asked. But it means this schema cannot honour an erasure request
+for a consented customer, which is a position to hold deliberately rather than
+discover. Recorded as carried debt.

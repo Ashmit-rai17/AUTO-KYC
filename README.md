@@ -8,9 +8,9 @@ a human review queue. Every action is audited.
 > **Status — M0 in progress.** API: scaffold, database schema and authentication
 > are done — `audit_log` is append-only at the database level, sessions revoke
 > instantly, credential routes are rate limited, state-changing requests carry a
-> CSRF token, and 82 tests pass. Both front ends now exist and sign in against
-> the live API. The review queue stays empty until applications and cases land,
-> which is the next slice.
+> CSRF token, and 138 tests pass. Applications work end to end: draft, save as
+> you go, consent, submit. Both front ends exist and sign in against the live
+> API. The review queue stays empty until cases land, which is next.
 
 ## The idea the whole design rests on
 

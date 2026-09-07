@@ -4,6 +4,8 @@ import type { Queryable } from './db/pool.js';
 import { requireCsrf } from './http/csrf.js';
 import { errorHandler, notFound } from './http/errors.js';
 import { globalRateLimit } from './http/rate-limit.js';
+import { applicationRoutes } from './modules/applications/applications.routes.js';
+import { createApplicationsService } from './modules/applications/applications.service.js';
 import { createAuthRepo } from './modules/auth/auth.repo.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { createAuthService } from './modules/auth/auth.service.js';
@@ -56,9 +58,12 @@ export function createApp({ config, db, hasher }: AppDeps): Express {
   const repo = createAuthRepo(db);
   const authService = createAuthService({ db, config, hasher, repo });
 
+  const applicationsService = createApplicationsService({ db, config });
+
   const api = Router();
   api.use(healthRoutes(db));
   api.use(authRoutes({ service: authService, repo, config }));
+  api.use(applicationRoutes({ service: applicationsService, repo, config }));
   app.use('/api', api);
 
   app.use(notFound);
