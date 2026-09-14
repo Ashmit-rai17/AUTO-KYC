@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "db:migrate": "node scripts/migrate.mjs up",
     "db:migrate:down": "node scripts/migrate.mjs down",
-    "test:integration": "vitest run -c vitest.integration.config.ts"
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.0",

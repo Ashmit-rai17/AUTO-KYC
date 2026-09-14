@@ -20,6 +20,7 @@
     "typecheck": "npm run typecheck --workspace api",
     "lint": "eslint .",
     "db:migrate": "npm run db:migrate --workspace api",
+    "db:seed": "npm run db:seed --workspace api",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "test:integration": "npm run test:integration --workspace api",

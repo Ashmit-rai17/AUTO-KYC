@@ -9,6 +9,7 @@
 | 005 | argon2id for passwords; Lax cookie behind a same-origin proxy | Accepted |
 | 006 | Rate limiting, CSRF tokens, and a silent registration | Accepted |
 | 007 | Ownership as a WHERE clause; drafts may be incomplete | Accepted |
+| 008 | Cases are visible only to their assignee; the system assigns | Accepted |
 
 Format: context → decision → consequences. Append new ADRs; never edit an
 accepted one (supersede instead).
@@ -307,3 +308,69 @@ refuses it and the consent row cannot be cleared out of the way. This schema
 therefore cannot honour an erasure request for a consented customer. Statutory
 KYC retention makes that defensible, but it is a conscious position rather than
 an accident, and a bank's privacy reviewer will ask about it.
+
+---
+
+# ADR-008: Case access - who sees a case, and how it gets to them
+Date: 2026-09-14
+Context: the cases slice is next and cannot start without this. Both sources
+that should define it decline to. docs/endpoint-contract.md marks the three
+case routes "case-access" and never says what that is. AGENTS.md says an
+EMPLOYEE acts on cases "assigned/authorized to them" without defining either
+word. The employee dashboard was built ahead of the API and already renders an
+assignedTo column, so the shape is partly fixed by a consumer that exists.
+Decision:
+- An EMPLOYEE sees ONLY cases assigned to them. Not a shared pool, not
+  unassigned work, not a colleague's case. Chosen deliberately over a claim
+  model: a bank review team allocates work rather than letting reviewers pick,
+  and the narrower rule is the one that can be widened later without having
+  first leaked anything.
+- Access is a WHERE clause, exactly as ADR-007 did for applications:
+  `AND assigned_to = $me`. A case belonging to someone else matches no row and
+  answers 404, never 403, so nobody can probe for the existence of a case.
+  There is no branch that could answer 403 by accident.
+- The SYSTEM assigns at creation. When the verification worker opens a case it
+  goes to the active EMPLOYEE with the fewest OPEN cases, tie-broken by oldest
+  users.created_at so the choice is deterministic and testable. Candidates are
+  `role = 'EMPLOYEE' AND status = 'active'` - a suspended account is not a
+  place to put work.
+- If there is NO eligible employee the case is still created, unassigned. The
+  alternative - refusing to open a case because the rota is empty - would
+  discard the verification result, which is the one thing that must survive.
+- An ADMIN sees every case, including unassigned ones and those held by a
+  suspended employee, and may reassign any of them. This is not a convenience.
+  Under assignee-only visibility an unassigned case is invisible to every
+  employee, so without an administrator who can see everything, work does not
+  merely queue up - it disappears. The ADMIN view is the safety net that makes
+  the narrow rule survivable.
+- Assignment is recorded in audit_log, not case_events. case_events is
+  constrained to request_info/approve/reject/note - the substantive decisions
+  on a case - and extending that CHECK would be a schema change for something
+  that is not a decision about the customer. audit_log takes it with no
+  migration: actor_type 'system' for an automatic assignment or 'employee' for
+  an administrator's, action 'case.assigned', entity_type 'review_case', and
+  detail carrying the previous and new assignee.
+- assignedTo is returned as the employee's EMAIL, not their user id. The queue
+  page renders the value directly as text, so an id would put a UUID in front
+  of staff. Employees only ever see their own cases, so the only person who
+  sees a colleague's address is an administrator.
+- A resolution is FINAL. case_events is append-only, so approve and reject
+  cannot be edited or withdrawn - correct for an audit trail, and the reason
+  the interface has to say so before the click rather than after.
+Consequences: + no employee can see, probe or act on work that is not theirs,
+and the 404 rule means they cannot learn a case exists at all. + assignment is
+automatic, so the narrow visibility rule does not create a bottleneck where a
+supervisor must hand out every item before anyone can work. + no migration:
+the schema already carries review_cases.assigned_to (nullable, indexed, FK to
+users ON DELETE SET NULL) and audit_log absorbs the assignment events.
+- two ways a case can go quiet, both mitigated by the ADMIN view rather than
+solved: suspending an employee leaves their open cases assigned to an account
+that cannot sign in, and deleting an employee sets assigned_to to NULL, which
+under this rule means the case belongs to nobody. Neither is automatically
+reassigned, because employee administration is M5. Until then an administrator
+must notice. - least-loaded assignment measures open case COUNT, which is not
+the same as load; a case with six failed checks is not one with a fuzzy name
+match. Good enough while the volume is a demonstration, and worth revisiting
+before it is not. - fewest-open-cases requires a count per candidate on every
+case creation. At demonstration volume this is irrelevant; at real volume it
+wants an index or a cached tally.

@@ -348,3 +348,44 @@ paper; the code now matches them.
 **Tests:** existing 61 unit + 83 integration, all passing, plus a from-scratch
 run of the documented setup against a wiped volume with no exported
 environment. Lint and typecheck clean.
+
+### 2026-09-14 — ADR-008 and a development seed
+**What:** Recorded ADR-008 (case access), and added api/scripts/seed.ts behind
+`npm run db:seed`, creating admin@ / reviewer@ / customer@kycflow.test. Also
+added `scripts` to tsconfig.typecheck.json's include.
+**Why:** the staff dashboard could not be signed into AT ALL. Registration
+only ever creates a CUSTOMER — auth.service.ts refuses a caller-supplied role,
+which is correct and must stay — and POST /api/admin/employees is M5. So a
+clone of this repository can reach the customer app and simply cannot reach
+the review queue. The only EMPLOYEE rows in existence were residue the
+integration suite leaves behind, which is not something to rely on and not
+something a colleague would ever find. That is a bad first five minutes for a
+new contributor and a worse one in front of a bank.
+
+The seed REFUSES to run when NODE_ENV=production, and deliberately has no flag
+to override that. It installs a known, published password on three accounts;
+against a production database that is a backdoor rather than test data. It
+also resets rather than skips on re-run, so a seeded environment is in a known
+state afterwards including its passwords, and it writes audit rows for what it
+creates because "every action is audited" should not have a quiet exception
+for the one actor that creates administrators.
+
+tsconfig.typecheck.json included only src, test and the vitest configs, so
+anything under scripts/ was never typechecked — seed.ts was passing by being
+ignored rather than by being correct. Adding scripts to the include closes
+that; the build config is untouched, so nothing new lands in dist (verified).
+
+ADR-008 settles case access, which the cases slice cannot start without:
+assignee-only visibility, automatic assignment at creation to the least-loaded
+active employee, ADMIN reassignment and full visibility. The ADMIN view is not
+a convenience — under assignee-only an unassigned case is invisible to every
+employee, so without it work does not queue, it disappears.
+**Decisions:** ADR-008. Notably that assignment is recorded in audit_log
+rather than case_events: case_events is CHECK-constrained to
+request_info/approve/reject/note, and an assignment is not a decision about
+the customer. This keeps the whole cases slice free of any schema change.
+**Docs touched:** docs/adr/session-cookies.md (ADR-008 plus its index row).
+**Tests:** seed verified three ways — re-run resets without duplicating (3
+rows, not 6), NODE_ENV=production is refused, and all three accounts return
+200 from POST /api/auth/login. Existing 61 unit + 83 integration still pass;
+lint, typecheck (now including scripts) and build all clean.
