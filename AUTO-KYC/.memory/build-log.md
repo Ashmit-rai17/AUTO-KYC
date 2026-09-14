@@ -435,3 +435,34 @@ alone. 67 unit + 83 integration pass; lint, typecheck and build clean. Also
 verified by actually booting the API: NODE_ENV=production refused with
 "Check these keys: PAN_PROVIDER, OCR_PROVIDER, STORAGE_PROVIDER", and started
 normally with the override set.
+
+### 2026-09-14 — Fix the Render build: devDependencies, and a silent failure
+**What:** render.yaml now runs `npm ci --include=dev`, and
+api/scripts/migrate.mjs checks for its binary and for DATABASE_URL before
+spawning, reporting what is wrong instead of exiting 1 with no output.
+**Why:** the first Render build failed. Render applies the service's envVars at
+BUILD time as well as runtime, so NODE_ENV=production was set while `npm ci`
+ran, and npm omits devDependencies when it sees that. node-pg-migrate,
+typescript and tsx all live there — 186 packages short, so the migrate step
+could not find its binary and `npm run build:api` would have failed next for
+the same reason. Render installed 116 packages where a local install produces
+302, which was the tell.
+
+The worse half was mine. migrate.mjs called spawnSync and checked only
+`result.status`, but a missing binary surfaces on `result.error` as ENOENT
+rather than by throwing — so the script exited 1 having printed nothing at
+all. The build log showed npm's wrapper error and no cause. A script that
+fails silently costs more than the bug it hides, so it now checks existsSync
+on the binary, checks DATABASE_URL, and reports result.error explicitly.
+
+Reproduced locally before fixing rather than reasoning about it: NODE_ENV=
+production npm ci gives 112 packages here against Render's 116, and the
+migrate step then fails with exactly the same shape. After the fix the whole
+buildCommand chain exits 0 against the live Neon database.
+**Decisions:** none. No dependency added, no schema change, no contract change.
+**Docs touched:** none — docs/deployment.md already described the sequence
+correctly; only the command needed the flag.
+**Tests:** 67 unit + 83 integration pass, lint and typecheck clean. The build
+chain was verified twice: failing the way Render failed, then succeeding with
+--include=dev, both with NODE_ENV=production set. The local .env path still
+works unchanged.

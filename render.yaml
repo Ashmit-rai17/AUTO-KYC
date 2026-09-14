@@ -19,7 +19,12 @@ services:
     # Migrations are idempotent ("No migrations to run!" on a second pass), so
     # running them on every deploy is safe and keeps the schema in step with
     # the code that expects it.
-    buildCommand: npm ci && npm run db:migrate && npm run build:api
+    # --include=dev is required, not optional. Render applies the envVars
+    # below at BUILD time too, so NODE_ENV=production makes npm omit
+    # devDependencies — and node-pg-migrate, typescript and tsx all live
+    # there. Without this the migrate step cannot find its binary and the
+    # build fails 186 packages short.
+    buildCommand: npm ci --include=dev && npm run db:migrate && npm run build:api
     startCommand: npm start
     # Liveness deliberately does not touch PostgreSQL; readiness does. Render
     # should wait for the database, so it uses the latter.
