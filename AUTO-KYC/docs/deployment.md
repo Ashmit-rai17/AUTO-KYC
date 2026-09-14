@@ -70,6 +70,19 @@ Two projects from the same repository. For each:
    `https://kycflow-api.onrender.com`. No trailing slash.
 4. Deploy.
 
+**Set `API_ORIGIN` BEFORE the first build.** `next.config.ts` reads it inside
+`rewrites()`, which Next evaluates at BUILD time and writes into
+`.next/routes-manifest.json`. It is compiled in, not read per request. Verified:
+
+| API_ORIGIN at build time | destination in routes-manifest.json |
+| --- | --- |
+| set | `https://kycflow-api.onrender.com/api/:path*` |
+| unset | `http://localhost:4000/api/:path*` |
+
+Deploy without it and the site proxies to localhost — which on Vercel's servers
+is nothing at all. Every request fails with no useful error. Changing the
+variable later does nothing on its own either: it needs a redeploy to take.
+
 `next.config.ts` rewrites `/api/*` to `API_ORIGIN` **server-side**, so the
 browser only ever sees the Vercel origin. That is what keeps the session cookie
 first-party and `SameSite=Lax` honest (ADR-005), and it is why no CORS
