@@ -307,3 +307,44 @@ submits marking exactly the missing fields, then a successful submit. The
 application row, the single consent record and the audit trail were all checked
 in PostgreSQL afterwards. The audit shows only the fields actually changed per
 save, which is the diffing working.
+
+### 2026-09-14 — Environment loading
+**What:** Nothing loaded the .env file the README tells you to create.
+Added api/src/env.ts (Node's built-in process.loadEnvFile, no dependency),
+imported first in index.ts and registered as the integration suite's
+setupFile, plus api/scripts/migrate.mjs to do the same for the migration CLI.
+**Why:** the documented setup did not work. `cp .env.example .env` then
+`npm run db:migrate` failed with "DATABASE_URL is not set", and `npm run
+dev:api` threw "Invalid environment configuration. Check these keys:
+DATABASE_URL". config.ts reads process.env directly, nothing populated it,
+and dotenv is not a dependency. Anyone cloning this — a colleague, a bank's
+technical team — hit a wall on step four of the README. Verified fixed by
+wiping the volume and running the documented sequence in a shell with nothing
+exported.
+
+The migration needed its own wrapper for three separate reasons, each of
+which fails quietly on its own: node-pg-migrate v9 dropped dotenv but kept
+--envPath in --help, where it now does nothing; the CLI's working directory
+is api/, so a workspace-root .env is out of its reach regardless; and Node's
+--env-file-if-exists, which would have been a one-liner, was added in v22.9.0
+while package.json declares ">=20.11". process.loadEnvFile is v20.10.0 and
+holds that line. Plain --env-file was not an option either — it THROWS on a
+missing file, which is precisely the CI and production case.
+
+Precedence is deliberate and matches in both places: a real environment
+variable always wins and the file only fills gaps, so a stray .env on a
+deployed box cannot override configured settings. Proven by starting the API
+with PORT=4099 against a .env saying 4000, and getting 4099.
+
+A GitHub Actions workflow was written alongside this and is held back on the
+branch `ci-workflow`: pushing a file under .github/workflows/ needs the
+`workflow` OAuth scope, which the current gh login does not carry. It lands as
+its own commit once that is granted. 144 tests exist and still run only when
+someone remembers to run them.
+**Decisions:** none needing an ADR. No dependency added (AGENTS.md), no
+schema change, no contract change.
+**Docs touched:** none — the README's instructions were already correct on
+paper; the code now matches them.
+**Tests:** existing 61 unit + 83 integration, all passing, plus a from-scratch
+run of the documented setup against a wiped volume with no exported
+environment. Lint and typecheck clean.

@@ -1,3 +1,6 @@
+// Must come first: populates process.env from the workspace .env before
+// loadConfig() reads it. See env.ts for why this is not a dependency.
+import './env.js';
 import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';

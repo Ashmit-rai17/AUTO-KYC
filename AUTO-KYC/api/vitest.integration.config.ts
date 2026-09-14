@@ -5,6 +5,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Populates process.env from the workspace .env, so the documented setup
+    // (cp .env.example .env) is enough to run these. Real environment
+    // variables still win, which is how CI supplies its own DATABASE_URL.
+    setupFiles: ['./src/env.ts'],
     include: ['test/**/*.integration.test.ts'],
     // One shared transaction per file; parallel workers would deadlock.
     fileParallelism: false,
