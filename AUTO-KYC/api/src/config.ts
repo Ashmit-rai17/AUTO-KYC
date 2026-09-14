@@ -46,7 +46,47 @@ const EnvSchema = z.object({
   PAN_PROVIDER: z.enum(['mock', 'real']).default('mock'),
   OCR_PROVIDER: z.enum(['mock', 'real']).default('mock'),
   STORAGE_PROVIDER: z.enum(['mock', 'b2']).default('mock'),
-});
+
+  /**
+   * The deliberate escape hatch for invariant 10, and the only one.
+   *
+   * An enum rather than z.coerce.boolean() for the same reason
+   * RATE_LIMIT_ENABLED is: coercion reads the string "false" as truthy, and a
+   * safety catch that silently disengages when someone writes false is worse
+   * than no catch at all.
+   */
+  ALLOW_MOCK_PROVIDERS_IN_PROD: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+})
+  /**
+   * AGENTS.md invariant 10: a simulated result must NEVER be mistakable for a
+   * real one. Every provider defaults to 'mock', so a production deploy that
+   * simply forgets to configure them would otherwise boot happily and start
+   * issuing simulated verdicts against real people's identity documents — the
+   * exact failure the invariant exists to prevent, one unset variable away.
+   *
+   * This lives in the schema rather than in index.ts so that no future entry
+   * point — a worker, a serverless handler, a script — can skip it by not
+   * remembering to call it.
+   */
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV !== 'production' || env.ALLOW_MOCK_PROVIDERS_IN_PROD) return;
+
+    for (const key of ['PAN_PROVIDER', 'OCR_PROVIDER', 'STORAGE_PROVIDER'] as const) {
+      if (env[key] === 'mock') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message:
+            'is a simulator, which must not run in production. Configure a real provider, ' +
+            'or set ALLOW_MOCK_PROVIDERS_IN_PROD=true to state deliberately that this ' +
+            'deployment is a demonstration.',
+        });
+      }
+    }
+  });
 
 export type Config = z.infer<typeof EnvSchema>;
 

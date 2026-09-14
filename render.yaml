@@ -1,0 +1,47 @@
+# Render blueprint for the KYCFlow API.
+#
+# The two front ends are NOT here — they go to Vercel, which is connected to
+# this repository on GitHub. Only the API lives on Render, and the reason is
+# worth stating: this API is a long-running Express process. It binds a port
+# (api/src/index.ts), holds a PostgreSQL connection pool, keeps rate-limit
+# counters in memory, and drains both on SIGTERM. A serverless platform would
+# require it to be rewritten as a request handler and would break the rate
+# limiter, which is a security control rather than a convenience. Render runs
+# it as it is actually built.
+services:
+  - type: web
+    name: kycflow-api
+    runtime: node
+    plan: free
+    # The repository root holds .github and AUTO-KYC; the npm workspace root is
+    # one level down, and npm ci must run from there to install the workspaces.
+    rootDir: AUTO-KYC
+    # Migrations are idempotent ("No migrations to run!" on a second pass), so
+    # running them on every deploy is safe and keeps the schema in step with
+    # the code that expects it.
+    buildCommand: npm ci && npm run db:migrate && npm run build:api
+    startCommand: npm start
+    # Liveness deliberately does not touch PostgreSQL; readiness does. Render
+    # should wait for the database, so it uses the latter.
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # paste the Neon pooled connection string, with sslmode=require
+      # Invariant 10: with NODE_ENV=production the API refuses to start while
+      # any provider is a simulator. This deployment IS a demonstration and
+      # says so out loud rather than by omission. Remove this the moment real
+      # provider credentials are configured.
+      - key: ALLOW_MOCK_PROVIDERS_IN_PROD
+        value: "true"
+      - key: PAN_PROVIDER
+        value: mock
+      - key: OCR_PROVIDER
+        value: mock
+      - key: STORAGE_PROVIDER
+        value: mock
+      - key: SESSION_COOKIE_NAME
+        value: kyc_session
+      - key: SESSION_TTL_HOURS
+        value: "8"

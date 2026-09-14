@@ -389,3 +389,49 @@ the customer. This keeps the whole cases slice free of any schema change.
 rows, not 6), NODE_ENV=production is refused, and all three accounts return
 200 from POST /api/auth/login. Existing 61 unit + 83 integration still pass;
 lint, typecheck (now including scripts) and build all clean.
+
+### 2026-09-14 — Invariant 10 enforced, and a deployment path
+**What:** Added ALLOW_MOCK_PROVIDERS_IN_PROD and a superRefine on EnvSchema
+that refuses to start under NODE_ENV=production while any provider is a
+simulator. Added render.yaml and docs/deployment.md for a Vercel (front ends)
+/ Render (API) / Neon (PostgreSQL) deployment.
+**Why:** invariant 10 and docs/provider-adapters.md both promised that the API
+"refuses to boot with mock providers when NODE_ENV=production unless
+ALLOW_MOCK_PROVIDERS_IN_PROD is explicitly set". No such code existed — the
+variable appeared nowhere outside prose, and the only NODE_ENV==='production'
+branch in the codebase sets `trust proxy`. Every provider DEFAULTS to mock, so
+a production deploy that merely forgot to configure them would have booted
+happily and issued simulated verdicts against real identity documents. That is
+precisely the failure the invariant exists to prevent, and it was one unset
+variable away. Found while planning a public deployment, which is exactly the
+situation that would have triggered it.
+
+The check lives in the schema rather than in index.ts so no future entry point
+— a worker, a script, a serverless handler — can skip it by forgetting to
+call it. ALLOW_MOCK_PROVIDERS_IN_PROD is an enum and not z.coerce.boolean()
+for the same reason RATE_LIMIT_ENABLED is: coercion reads the string "false"
+as truthy, and a safety catch that silently disengages when someone writes
+false is worse than no catch at all. There is a test asserting exactly that.
+
+Typecheck caught test/helpers.ts missing the new key — the suite itself stayed
+green, because vitest does not typecheck. Worth noting as the reason the
+separate typecheck step earns its keep.
+
+The deployment splits deliberately. The API stays a long-running Express
+process on Render because that is what it is: it binds a port, holds a pool,
+keeps rate-limit counters in memory and drains on SIGTERM. Putting it on a
+serverless platform would mean rewriting the entry point as a request handler
+and would break the login rate limiter, which is a security control rather
+than a convenience. Only the two Next.js front ends go to Vercel, where the
+existing rewrite keeps the browser on ONE origin so the session cookie stays
+first-party and ADR-005 holds with no CORS anywhere.
+**Decisions:** none new — this implements ADR-004 and invariant 10 as already
+written, rather than deciding anything. No dependency added, no schema change.
+**Docs touched:** .env.example (two new variables), docs/deployment.md (new).
+**Tests:** six new config tests — refusal under production, every offending
+provider named rather than just the first, boot permitted once providers are
+real, override honoured, the string "false" treated as off, development left
+alone. 67 unit + 83 integration pass; lint, typecheck and build clean. Also
+verified by actually booting the API: NODE_ENV=production refused with
+"Check these keys: PAN_PROVIDER, OCR_PROVIDER, STORAGE_PROVIDER", and started
+normally with the override set.

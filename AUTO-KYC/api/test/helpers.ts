@@ -23,6 +23,11 @@ export const testConfig: Config = {
   PAN_PROVIDER: 'mock',
   OCR_PROVIDER: 'mock',
   STORAGE_PROVIDER: 'mock',
+  // NODE_ENV is 'test' here, so the production simulator guard never engages
+  // and this value is inert. It stays false so that nothing in the suite is
+  // quietly exercising the override path (see config.test.ts, which sets
+  // NODE_ENV explicitly when it wants to test the guard).
+  ALLOW_MOCK_PROVIDERS_IN_PROD: false,
 };
 
 /**
