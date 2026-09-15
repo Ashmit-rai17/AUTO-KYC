@@ -11,7 +11,12 @@ import type { NextConfig } from 'next';
  */
 const nextConfig: NextConfig = {
   async rewrites() {
-    const api = process.env.API_ORIGIN ?? 'http://localhost:4000';
+    // Trailing slashes are stripped deliberately. A destination built from
+    // "https://host/" yields "https://host//api/:path*", and that double
+    // slash matches no route — the API answers its own 404 and the failure
+    // reads as "Resource not found" with nothing pointing at the real cause.
+    // It cost one deployment; an origin is a host, so normalise it here.
+    const api = (process.env.API_ORIGIN ?? 'http://localhost:4000').replace(/\/+$/, '');
     return [{ source: '/api/:path*', destination: `${api}/api/:path*` }];
   },
 };
