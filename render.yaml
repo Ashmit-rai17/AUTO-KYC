@@ -46,6 +46,15 @@ services:
         value: mock
       - key: STORAGE_PROVIDER
         value: mock
+      # 19456 KiB is the OWASP floor for argon2id, and the minimum config.ts
+      # will accept — the schema refuses anything weaker. The default is 65536
+      # (64 MiB per concurrent login), which a free instance does not have the
+      # headroom for: the first login after a cold start returned 502 before
+      # this was set. REMOVE THIS the moment the deployment holds real data;
+      # the cost parameter is what makes a stolen hash expensive to crack, and
+      # 19 MiB is the floor rather than a good place to sit.
+      - key: ARGON2_MEMORY_KIB
+        value: "19456"
       - key: SESSION_COOKIE_NAME
         value: kyc_session
       - key: SESSION_TTL_HOURS

@@ -107,6 +107,27 @@ DATABASE_URL='<neon pooled string>' SEED_PASSWORD='<something private>' npm run 
 Never seed a public deployment with the default password. The default exists so
 a local clone works in one command; on a public URL it is a published login.
 
+## Password hashing cost on a small instance
+
+`render.yaml` sets `ARGON2_MEMORY_KIB=19456` (19 MiB) rather than the default
+65536 (64 MiB). A free instance does not have the headroom for 64 MiB per
+concurrent login — the first login after a cold start returned 502 before this
+was set. 19456 is the OWASP floor for argon2id and the minimum `config.ts`
+accepts; the schema refuses anything weaker. **Remove it once the deployment
+holds real data:** the cost parameter is what makes a stolen hash expensive to
+crack, and the floor is not a good place to sit.
+
+One subtlety that makes the setting look broken if you miss it. **argon2 stores
+its cost parameters inside the hash** (`$argon2id$v=19$m=65536,t=3,p=1$...`),
+and verification reads them from there, not from configuration. So lowering the
+variable changes nothing for accounts that already exist — verifying their
+hashes still allocates whatever they were created with. Existing accounts must
+be re-seeded (or their passwords reset) for the new cost to apply. Check with:
+
+```sql
+SELECT email, split_part(password_hash, '$', 4) FROM users;
+```
+
 ## What is not solved by deploying
 
 - **Rate limiting is per-instance and in memory** (`api/src/http/rate-limit.ts`
