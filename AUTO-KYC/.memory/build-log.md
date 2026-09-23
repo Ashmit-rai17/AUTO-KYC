@@ -499,3 +499,43 @@ a migration applied from scratch against a throwaway `migrate_probe` database,
 which produced 11 tables and 7 triggers before being dropped. The pre-existing
 failure was reproduced first, and the .cmd alternative was measured as EINVAL
 rather than assumed.
+
+### 2026-09-23 — Case custody enforced in the database (ADR-009)
+**What:** a second migration, 1790158447000_case-custody-audit. An AFTER INSERT
+OR UPDATE trigger on review_cases writes a 'case.custody.changed' row to
+audit_log whenever assigned_to or status changes. Seven integration tests.
+**Why:** ADR-008 made review_cases.assigned_to the access-control predicate, so
+that one nullable column decides who may read a customer's PAN, date of birth
+and address — and review_cases was the only table on the case path with no
+trigger at all. Any UPDATE could move a case to a different reader with nothing
+left behind. ADR-008 says audit_log absorbs assignment events and the
+application does write them, but that is a promise the CALLER keeps, and every
+other guarantee in this schema is one the DATABASE keeps. M1's worker, a
+maintenance script and a future handler all touch this column and none of them
+is covered by a promise made in ADR-008.
+
+The trigger deliberately does not name the actor. A trigger sees a row, not a
+request, and identifying the employee would need the application to set a
+session variable first — so a path that forgot would report NULL exactly when
+it mattered. An unattributed truth that cannot be skipped beats an attribution
+that can. Two rows per assignment, answering different questions.
+
+Unplanned dividend, verified rather than hoped for: assigned_to is ON DELETE
+SET NULL, and PostgreSQL performs that referential action as an UPDATE, so the
+trigger fires. Deleting an employee writes assigned_from = them, assigned_to =
+null. That is the gap ADR-008 flagged and deferred to M5, closed for free.
+**Decisions:** ADR-009. Second migration, deliberately separate: enforcement
+should land BEFORE the cases slice depends on it, not alongside it.
+**Docs touched:** docs/adr/session-cookies.md (ADR-009), docs/db-schema.md.
+**Tests:** 67 unit + 90 integration (was 83) pass, typecheck and lint clean.
+Migration down/up round-tripped: trigger count 0 after down, 1 after up.
+
+One test failed first and the trigger was not at fault. It asserted on the LAST
+custody row, but audit_log.created_at defaults to now() — the TRANSACTION
+timestamp — so every row this file writes carries the same instant and the only
+tiebreak left is a random UUID. The assertion passed or failed by luck. This is
+the same now() trap already recorded in current-milestone.md, met from a new
+direction: not "the timestamp did not advance" but "ordering by it is not an
+ordering". Checked against the database directly before touching anything, which
+showed the trigger emitting exactly the right two rows; the assertions are now
+order-independent and say why.

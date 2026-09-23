@@ -12,6 +12,12 @@ not. TRUNCATE needs its own statement-level trigger, because a row trigger
 never sees it — that is the one command that would otherwise erase an audit
 trail silently. See ADR-003.
 
+review_cases stays mutable, but not quietly. Since ADR-008 made assigned_to the
+predicate that decides who may read a case, an AFTER INSERT OR UPDATE trigger
+(`log_case_custody()`) writes a `case.custody.changed` row to audit_log whenever
+assigned_to or status differs — including when a FK ON DELETE SET NULL moves it.
+Editing reason_summary writes nothing. See ADR-009.
+
 ## Tables (core columns)
 - users(id, email UNIQUE, password_hash, role[CUSTOMER/EMPLOYEE/ADMIN],
   created_at, status)

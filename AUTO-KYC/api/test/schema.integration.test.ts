@@ -350,3 +350,149 @@ describe('documents', () => {
     );
   });
 });
+
+/**
+ * ADR-009. review_cases.assigned_to is the access-control predicate for every
+ * case, so a change to it must be impossible to make quietly. These assert the
+ * database writes the record, not that the application remembers to.
+ */
+describe('review_cases custody trigger', () => {
+  /** A fresh application each time: review_cases.application_id is UNIQUE. */
+  async function freshCase(assignee: string | null = null): Promise<string> {
+    const app = await client.query<{ id: string }>(
+      `INSERT INTO applications (user_id) VALUES ($1) RETURNING id`,
+      [userId],
+    );
+    const created = await client.query<{ id: string }>(
+      `INSERT INTO review_cases (application_id, assigned_to, reason_summary)
+       VALUES ($1, $2, 'name_match REVIEW') RETURNING id`,
+      [app.rows[0]!.id, assignee],
+    );
+    return created.rows[0]!.id;
+  }
+
+  async function employee(): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, role)
+       VALUES ($1, 'not-a-real-hash', 'EMPLOYEE') RETURNING id`,
+      [`custody-${Date.now()}-${Math.random()}@example.com`],
+    );
+    return rows[0]!.id;
+  }
+
+  /**
+   * Returned UNORDERED, and nothing below indexes into the result.
+   *
+   * It cannot: audit_log.created_at defaults to now(), which is the
+   * TRANSACTION timestamp, so every row this file writes carries the same
+   * instant and the only tiebreak left is a random UUID. Asserting on "the
+   * last row" then passes or fails by luck - which is how the deleted-holder
+   * case below first looked like a trigger bug when the trigger was right.
+   */
+  async function custodyRows(caseId: string) {
+    const { rows } = await client.query<{ detail: Record<string, unknown> }>(
+      `SELECT detail FROM audit_log
+        WHERE entity_type = 'review_case' AND entity_id = $1
+          AND action = 'case.custody.changed'`,
+      [caseId],
+    );
+    return rows.map((row) => row.detail);
+  }
+
+  it('records the first assignment, naming nobody as the previous holder', async () => {
+    const caseId = await freshCase();
+    const reviewer = await employee();
+    expect(await custodyRows(caseId)).toHaveLength(0);
+
+    await client.query(`UPDATE review_cases SET assigned_to = $1 WHERE id = $2`, [
+      reviewer,
+      caseId,
+    ]);
+
+    const rows = await custodyRows(caseId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      operation: 'UPDATE',
+      assigned_from: null,
+      assigned_to: reviewer,
+    });
+  });
+
+  it('records a handover with both holders, so custody can be reconstructed', async () => {
+    const first = await employee();
+    const second = await employee();
+    const caseId = await freshCase(first);
+
+    await client.query(`UPDATE review_cases SET assigned_to = $1 WHERE id = $2`, [
+      second,
+      caseId,
+    ]);
+
+    const rows = await custodyRows(caseId);
+    // One for the assigned INSERT, one for the handover.
+    expect(rows).toHaveLength(2);
+    expect(rows).toContainEqual(
+      expect.objectContaining({ assigned_from: first, assigned_to: second }),
+    );
+  });
+
+  it('stays quiet when something that is not custody changes', async () => {
+    const caseId = await freshCase(await employee());
+    const before = (await custodyRows(caseId)).length;
+
+    await client.query(`UPDATE review_cases SET reason_summary = $1 WHERE id = $2`, [
+      'reworded, still the same holder',
+      caseId,
+    ]);
+
+    expect(await custodyRows(caseId)).toHaveLength(before);
+  });
+
+  it('records a resolution, because status decides whether it can be acted on', async () => {
+    const caseId = await freshCase(await employee());
+    const before = (await custodyRows(caseId)).length;
+
+    await client.query(
+      `UPDATE review_cases SET status = 'resolved', resolved_at = now() WHERE id = $1`,
+      [caseId],
+    );
+
+    const rows = await custodyRows(caseId);
+    expect(rows).toHaveLength(before + 1);
+    expect(rows).toContainEqual(
+      expect.objectContaining({ status_from: 'open', status_to: 'resolved' }),
+    );
+  });
+
+  it('writes nothing for a case created with nobody holding it', async () => {
+    // ADR-008 allows this when no employee is eligible. There is no custody
+    // yet, so there is nothing to record.
+    expect(await custodyRows(await freshCase(null))).toHaveLength(0);
+  });
+
+  it('catches the case going quiet when its holder is deleted', async () => {
+    // ADR-008 flagged this and deferred it: assigned_to is ON DELETE SET NULL,
+    // so deleting an employee makes their cases belong to nobody. PostgreSQL
+    // performs that as an UPDATE, so the trigger sees it.
+    const reviewer = await employee();
+    const caseId = await freshCase(reviewer);
+
+    await client.query(`DELETE FROM users WHERE id = $1`, [reviewer]);
+
+    expect(await custodyRows(caseId)).toContainEqual(
+      expect.objectContaining({ assigned_from: reviewer, assigned_to: null }),
+    );
+  });
+
+  it('cannot have the record removed afterwards', async () => {
+    const caseId = await freshCase(await employee());
+    await client.query('SAVEPOINT custody_sp');
+    await expect(
+      client.query(
+        `DELETE FROM audit_log WHERE entity_id = $1 AND action = 'case.custody.changed'`,
+        [caseId],
+      ),
+    ).rejects.toThrow(/append-only/);
+    await client.query('ROLLBACK TO SAVEPOINT custody_sp');
+  });
+});

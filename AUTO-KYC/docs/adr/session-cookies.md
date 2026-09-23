@@ -374,3 +374,64 @@ match. Good enough while the volume is a demonstration, and worth revisiting
 before it is not. - fewest-open-cases requires a count per candidate on every
 case creation. At demonstration volume this is irrelevant; at real volume it
 wants an index or a cached tally.
+
+# ADR-009: Case custody is recorded by the database, not by the caller
+Date: 2026-09-23
+Context: ADR-008 made review_cases.assigned_to the access-control predicate -
+an employee sees only cases where assigned_to is theirs - so that one nullable
+column now decides who may read a customer's PAN, date of birth and address.
+It arrived unprotected. review_cases is the only table on the case path
+carrying no trigger at all: audit_log, case_events and consents are append-only
+through reject_mutation(), applications has set_updated_at(), review_cases has
+nothing. A single UPDATE can therefore move a case to a different reader and
+leave no evidence that it ever moved. ADR-008 does say audit_log absorbs the
+assignment events and the application does write them - but that is a promise
+the CALLER keeps, and every other guarantee in this schema is one the DATABASE
+keeps. The gap is not that the application is careless today; it is that M1's
+verification worker, a maintenance script and a future handler all get to
+touch this column, and none of them is covered by a promise made here.
+Decision:
+- An AFTER INSERT OR UPDATE trigger on review_cases writes a
+  'case.custody.changed' row into audit_log whenever assigned_to or status
+  differs from what was there before. audit_log is append-only, so that record
+  cannot subsequently be edited or removed - including by whoever made the
+  change.
+- The trigger does NOT try to name the actor, and this is the deliberate part.
+  A trigger sees a row, not a request. Identifying the employee would mean the
+  application setting a session variable first, and a code path that forgets to
+  do that is precisely the path this exists to catch - so it would report NULL
+  exactly when it mattered most. Recording an unattributed truth beats
+  recording an attribution that can be skipped.
+- So an ordinary assignment writes TWO rows, and they answer different
+  questions. The application's 'case.assigned' row (ADR-008) says who acted and
+  why, and can be forgotten. This one says the row changed, and cannot. Where
+  the two disagree, the one that was not optional is the one to believe.
+- AFTER rather than BEFORE: this records what happened, it does not decide
+  whether it may. Authorisation stays in the WHERE clause where ADR-007 and
+  ADR-008 put it.
+- Comparison is IS DISTINCT FROM rather than =, because assigned_to is nullable
+  and NULL = NULL is NULL - under = an unassignment would read as no change at
+  all, which is the single event most worth catching.
+- Rewording reason_summary is not a custody event and writes nothing. A trigger
+  that fires on every edit trains people to ignore it.
+- A case created with nobody holding it writes nothing either. ADR-008 permits
+  that when no employee is eligible; there is no custody yet to record.
+Consequences: + custody becomes a property of the database rather than of the
+code that happens to be calling it, so the M1 worker inherits the guarantee
+without knowing it exists. + "who could have read this customer's PAN, and
+when did that change" is answerable from one append-only table, which is the
+question a bank's auditors actually ask. + it closes, for free, a gap ADR-008
+flagged and deferred to M5: assigned_to is ON DELETE SET NULL, so deleting an
+employee silently makes their cases belong to nobody - PostgreSQL performs that
+referential action as an UPDATE, so the trigger sees it and the disappearance
+is recorded rather than discovered later. Proven, not assumed: deleting a
+holder writes assigned_from = the employee, assigned_to = null.
+- two audit rows per assignment where ADR-008 anticipated one, so anything
+counting rows by action must filter rather than total. - the trigger's row
+carries actor_type 'system' and a NULL actor_id even when a person did it,
+which reads oddly until the reason above is known; it is a statement about the
+row, not about the request. - this is the second migration, where the schema
+had been one file. Deliberate: enforcement should land before the cases slice
+depends on it, not alongside it. - it does not stop a bad assignment, only
+hides nothing about it. Preventing one needs the application-level rule, which
+is where ADR-008 correctly leaves it.
