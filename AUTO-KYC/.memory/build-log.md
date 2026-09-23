@@ -466,3 +466,36 @@ correctly; only the command needed the flag.
 chain was verified twice: failing the way Render failed, then succeeding with
 --include=dev, both with NODE_ENV=production set. The local .env path still
 works unchanged.
+
+### 2026-09-23 — `npm run db:migrate` could never have worked on Windows
+**What:** api/scripts/migrate.mjs now spawns node-pg-migrate's own JS entry
+point with `process.execPath`, instead of spawning the extensionless shim in
+node_modules/.bin. The entry path is read from the package's `bin` field rather
+than hardcoded, and both the workspace root and api/node_modules are searched
+so a non-hoisted install still resolves.
+**Why:** the shim in .bin has no file extension. On Linux its shebang makes it
+executable, which is why Render has always been fine. On Windows CreateProcess
+has nothing to run it with and spawnSync fails ENOENT — so step 4 of the
+README's setup, `npm run db:migrate`, failed for every Windows clone. The
+obvious repair is worse than it looks: reaching for the .cmd shim beside it
+gives EINVAL instead, because Node has refused to spawn .cmd/.bat without
+shell: true since 18.20/20.12 (CVE-2024-27980), and shell: true would then
+need every argument quoted against paths containing spaces. Spawning the JS
+entry with the current node binary avoids the shell on every platform.
+
+Worth noting what hid this. The previous commit fixed a DIFFERENT failure in
+the same three lines — a missing binary reported on result.error rather than
+by throwing — and its existsSync check passes here, because the shim really is
+present. The script found the file and then could not execute it, which is a
+failure mode the check was never looking for. A green check next to a red
+outcome is why this needed running rather than reading.
+**Decisions:** none. No dependency added, no schema change, no contract change.
+ADR-008 already settles case access; nothing here touches it.
+**Docs touched:** none — the documented command is unchanged, it now works.
+**Tests:** 67 unit + 83 integration pass, typecheck and lint clean. The fix was
+verified on Windows four ways rather than by reasoning: the success path against
+the live database; the missing-DATABASE_URL path still reporting both lines; and
+a migration applied from scratch against a throwaway `migrate_probe` database,
+which produced 11 tables and 7 triggers before being dropped. The pre-existing
+failure was reproduced first, and the .cmd alternative was measured as EINVAL
+rather than assumed.
