@@ -539,3 +539,53 @@ direction: not "the timestamp did not advance" but "ordering by it is not an
 ordering". Checked against the database directly before touching anything, which
 showed the trigger emitting exactly the right two rows; the assertions are now
 order-independent and say why.
+
+### 2026-09-24 — The RBI rules this is actually built against
+**What:** docs/rbi-compliance.md — the KYC Master Direction (as updated 14 August
+2025) plus the 12 June 2025 periodic-updation revision, mapped paragraph by
+paragraph onto this codebase, with an honest list of what is not satisfied.
+Added to the README doc map, along with deployment.md which had been missing
+from it since it was written.
+**Why:** the product is being shown to a bank, and until now nothing in the
+repository named the regulation it claims to serve. Written as a MAP rather
+than a transcription: a copy of the Direction is available from RBI and is more
+authoritative than anything here, whereas "which paragraph does this column
+answer to, and which ones does nothing answer to" is the thing only we can
+write.
+
+Two findings changed how the rest of the work should be read.
+
+Para 8(b) says KYC decision-making shall not be outsourced. That is the
+regulatory basis for the golden line rules-engine.md already held on
+engineering instinct — evidence from models, decisions from rules, with
+reasons. It means verification_checks.reason being NOT NULL is a compliance
+artefact rather than good manners, and that an opaque score would not merely be
+poor design, it would put the decision function somewhere a bank is not
+permitted to put it.
+
+Para 40 is the one that stings. Everything here is non-face-to-face onboarding,
+so para 40 governs the whole product, and it requires such customers to be
+categorised HIGH RISK with enhanced monitoring. The schema has no notion of
+risk category at all. Para 12 additionally makes the category confidential and
+not to be revealed to the customer, which is a hard constraint on any future
+API response rather than a policy note. Nothing in the milestone plan covers
+either.
+
+Also worth recording because it inverts something the project has been carrying
+as debt: "a consented customer cannot be deleted" is not a defect. Para 46
+requires identification records to be kept at least five years AFTER the
+relationship ends, which is incompatible with unconditional erasure, and
+encoding that refusal in the database beats trusting an application to remember
+it. It stays a position the bank must own in its privacy notice, and the
+cascade is wider than first recorded - customer, application, case and the
+acting employee are all undeletable once a case event exists.
+**Decisions:** none - this records external constraints rather than choosing
+anything. No ADR, because nothing here is ours to decide. The two gaps it
+surfaces (risk categorisation, Form 60) are legal preconditions rather than
+features and want a plan change, which is a separate conversation.
+**Docs touched:** docs/rbi-compliance.md (new), README.md (doc map).
+**Tests:** none - documentation only, and no code was touched. Unit tests and
+lint re-run clean; the integration suite was not re-run for this commit and
+stands as verified at ca51fe1. Sourced from rbi.org.in primary documents rather
+than from commentary; paragraph numbers move between amendments and the
+document says so.

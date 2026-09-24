@@ -130,6 +130,8 @@ the design is not allowed to violate.
 | [rules-engine.md](AUTO-KYC/docs/rules-engine.md) | Evidence to decision pipeline |
 | [provider-adapters.md](AUTO-KYC/docs/provider-adapters.md) | PAN, OCR and storage interfaces |
 | [milestones.md](AUTO-KYC/docs/milestones.md) | M0 to M5 |
+| [rbi-compliance.md](AUTO-KYC/docs/rbi-compliance.md) | RBI KYC Master Direction mapped onto this system, and the gaps |
+| [deployment.md](AUTO-KYC/docs/deployment.md) | Deploying the demonstration: Vercel, Render, Neon |
 | [adr/](AUTO-KYC/docs/adr/) | Decision records |
 
 ## Security posture
