@@ -54,6 +54,27 @@ New order: M0 skeleton (here) -> M1 verification engine + simulators ->
 M2 Aadhaar offline e-KYC -> M3 demonstration surface -> M4 documents + OCR ->
 M5 rules config + admin + polish.
 
+## The plan gained two items on 24 September 2026
+docs/rbi-compliance.md mapped the RBI KYC Master Direction onto this system and
+turned up two things that are legal preconditions rather than features. Both are
+now in M1, and the demonstration scenarios went from five to six.
+
+1. RISK CATEGORISATION. Para 40 makes every non-face-to-face customer HIGH RISK,
+   and all onboarding here is non-face-to-face, so the answer is fixed by rule
+   rather than by judgement. Nothing in the schema carries a risk category.
+   Para 12 also makes it CONFIDENTIAL from the customer, which constrains the
+   API and not merely the UI. Settle first: does the category live on the
+   customer (para 12 categorises customers, para 38 drives periodic updation off
+   it) or on the application?
+2. FORM 60. Para 16(b) makes it the lawful alternative to a PAN. The customer
+   form requires a PAN today, which excludes people the Direction expects to be
+   onboarded. M1 takes the declaration route; the stored signed form is M4.
+
+Also worth knowing before touching the erasure question again: para 46 requires
+identification records kept at least five years AFTER the relationship ends, so
+"a consented customer cannot be deleted" is a compliance POSITION rather than
+the debt it was recorded as below.
+
 AGENTS.md gained invariant 10 (a simulated result must never be mistakable
 for a real one) and invariant 7 now covers Aadhaar.
 
@@ -91,12 +112,18 @@ What is still outstanding, and why:
   forward. The fix is a reset flow, which needs an email provider. That
   provider should follow ADR-004 and ship with a simulator so the flow can be
   demonstrated before any mail is actually sent.
-- **A consented customer cannot be deleted.** consents.user_id is ON DELETE
-  RESTRICT and consents is append-only, so the delete is refused and the
-  consent row cannot be moved aside. This schema therefore cannot honour an
-  erasure request for anyone who consented. Statutory KYC retention makes it
-  defensible, but it is a position rather than an accident and a privacy
-  reviewer will ask. Found because a test could not clean up after itself.
+- **Nothing on a case path can be deleted, and that is now a stated position
+  rather than debt.** consents.user_id is ON DELETE RESTRICT and consents is
+  append-only, so a consented customer cannot be removed. The cascade is wider
+  than first recorded: once a case event exists, case_events.actor_id is ON
+  DELETE RESTRICT and the append-only trigger fires up the chain, so the
+  CUSTOMER, the APPLICATION, the CASE and the ACTING EMPLOYEE are all
+  undeletable. MD para 46 requires identification records for at least five
+  years AFTER the relationship ends, which unconditional erasure cannot
+  satisfy, so encoding the refusal in the database is the stronger position -
+  see docs/rbi-compliance.md. It stays something the BANK must own in its
+  privacy notice, and a privacy reviewer will still ask. Found because a test
+  could not clean up after itself.
 - **Rate-limit store is in-memory**, so the limit multiplies by instance count
   behind more than one API instance. Correct for the demonstration; must move
   to a shared store before it is not.

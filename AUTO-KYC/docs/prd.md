@@ -32,9 +32,15 @@ provable, and to behave correctly on the day it is crossed.
 4. Admin: create employee accounts, configure rules (post-MVP).
 5. Audit: append-only log of all significant actions.
 6. SIMULATION: every provider has a simulator reproducing its real contract —
-   response envelope, latency, and failure taxonomy. All five demonstration
+   response envelope, latency, and failure taxonomy. All six demonstration
    scenarios in docs/milestones.md are reachable on demand, including a
-   provider outage, without editing code or fixtures.
+   provider outage and a customer with no PAN, without editing code or
+   fixtures.
+7. REGULATORY: the system carries the two things the RBI KYC Master Direction
+   requires of a non-face-to-face onboarding channel and the plan originally
+   missed — a risk category on every customer (paras 12 and 40, confidential
+   from the customer) and Form 60 as the lawful alternative to a PAN
+   (para 16(b)). Mapped in docs/rbi-compliance.md.
 
 ## Non-functional requirements (core)
 - SECURITY: RBAC, ownership checks, signed uploads, no creds in frontend.

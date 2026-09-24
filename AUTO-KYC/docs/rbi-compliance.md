@@ -69,11 +69,13 @@ whole product, and it imposes conditions that are *not* currently modelled:
 | V-CIP offered as the **first option** for remote onboarding | **Not built.** See V-CIP below. |
 | PAN **verified from the issuing authority's** verification facility | The provider adapter is exactly this seam (`PAN_PROVIDER`); real access is the bank's, per [ADR-004](adr/session-cookies.md). |
 | First transaction must be a **credit from an existing KYC-complied account** | Out of scope — a core-banking control, not ours. Must be stated to the bank, not silently assumed. |
-| Such accounts **categorised as high risk**, with enhanced monitoring | **Not modelled.** No risk category exists in the schema. |
+| Such accounts **categorised as high risk**, with enhanced monitoring | **planned** M1 — no risk category exists in the schema yet. |
 | Current address confirmed positively before operations | Not modelled. |
 
-**This is the single largest compliance gap in the current design**: the product
-is an EDD-triggering channel and carries no notion of risk category at all.
+**This was the single largest compliance gap in the design**: the product is an
+EDD-triggering channel that carried no notion of risk category at all. It is now
+planned in [M1](milestones.md), which is the earliest it could land — the
+category is an output of a verification run, and M1 is where runs begin.
 
 ## Obligation map
 
@@ -87,7 +89,7 @@ responsibility, not the software's) · **gap** (needed, unplanned).
 | 10 | No anonymous, fictitious or benami accounts | **built** — every application hangs off an authenticated `users` row |
 | 10 | No account where CDD cannot be applied; consider filing an STR | **planned** M1 — this is `FAIL`, and it must never be an automatic *rejection letter*; see "tipping off" below |
 | 16 | Obtain proof of possession of Aadhaar **or** an OVD | **planned** M2/M4 — `documents.type` |
-| 16(b) | Obtain **PAN or Form 60** | **partial** — `personal_data.pan` exists; **Form 60 is not modelled at all**, and it is the lawful alternative for a customer with no PAN. A form that demands a PAN is a form that excludes people the Direction expects to be onboarded. |
+| 16(b) | Obtain **PAN or Form 60** | **planned** M1 — `personal_data.pan` exists; Form 60, the lawful alternative for a customer with no PAN, arrives as a declaration in M1 and as a stored signed form in M4. A form that demands a PAN excludes people the Direction expects to be onboarded. |
 | 16 | Recent photograph | **gap** — not in the schema |
 | 3(a)(xiv) | OVD list: passport, driving licence, proof of possession of Aadhaar, Voter's ID, NREGA job card, NPR letter | **planned** M4 — `documents.type` must encode this set, not a free string |
 | 34 | Beneficial owner for non-individuals (>10% companies/partnerships, 15% unincorporated) | **out of scope** — individuals only; say so explicitly to the bank |
@@ -122,11 +124,11 @@ conditions, not a deployment that has skipped them.
 
 | Para | Obligation | Status |
 | --- | --- | --- |
-| 12 | Categorise every customer low / medium / high risk | **gap** |
-| 12 | The risk category is **confidential and must not be revealed to the customer** — to avoid tipping off | **gap, and a hard system constraint.** If a risk category is ever added, it must never reach a customer-facing response. The existing rule that customer-facing errors stay soft and non-enumerating is the same instinct; this makes it a requirement. |
+| 12 | Categorise every customer low / medium / high risk | **planned** M1 |
+| 12 | The risk category is **confidential and must not be revealed to the customer** — to avoid tipping off | **planned** M1, **and a hard system constraint.** The category must never reach a customer-facing response. The existing rule that customer-facing errors stay soft and non-enumerating is the same instinct; this makes it a requirement. |
 | 38 | Periodic updation: high risk **2 years**, medium **8 years**, low **10 years** | **gap** — nothing schedules re-verification |
 | 35–37 | Ongoing monitoring of transactions against the customer's profile | **out of scope** — a transaction monitoring system, not an onboarding system |
-| 40 | Non-face-to-face accounts are high risk | **gap** — see above |
+| 40 | Non-face-to-face accounts are high risk | **planned** M1 — see above |
 
 **Periodic updation, as revised 12 June 2025** (DOR.AML.REC.30/14.01.001/2025-26):
 at least **three advance intimations** before the due date and **three
@@ -189,10 +191,11 @@ Ordered by how much they matter for a bank demonstration:
 
 1. **No risk categorisation.** Para 12 and para 40 both require it, and para 40
    applies to everything this product does. It affects the schema, the rules
-   engine output and the review queue.
+   engine output and the review queue. **Now planned in M1.**
 2. **No Form 60.** Para 16(b) makes it the lawful alternative to PAN. The
    customer form currently requires a PAN, which excludes people the Direction
-   expects to be onboarded.
+   expects to be onboarded. **Now planned in M1** as a declaration, with the
+   stored signed form in M4.
 3. **No periodic updation.** Para 38 plus the June 2025 revision is a whole
    subsystem — scheduling, three intimations, three reminders, letters,
    acknowledgements.
@@ -207,8 +210,12 @@ Ordered by how much they matter for a bank demonstration:
 Nothing already planned becomes wrong. But the milestone plan was written from a
 product view, and two items above are *legal* preconditions for onboarding a
 real customer rather than features: **risk categorisation** (para 40) and
-**Form 60** (para 16(b)). Both are small in schema terms and neither is on the
-plan. They belong in M1 and M4 respectively rather than in "polish".
+**Form 60** (para 16(b)).
+
+Both are now on the plan, in [milestones.md](milestones.md) M1, with the
+document-backed Form 60 following in M4. A sixth demonstration scenario — a
+customer with no PAN — was added with them, because a rule nobody demonstrates
+is a rule nobody notices is missing.
 
 ## Sources
 

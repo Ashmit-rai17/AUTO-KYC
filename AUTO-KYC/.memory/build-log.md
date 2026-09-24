@@ -589,3 +589,44 @@ lint re-run clean; the integration suite was not re-run for this commit and
 stands as verified at ca51fe1. Sourced from rbi.org.in primary documents rather
 than from commentary; paragraph numbers move between amendments and the
 document says so.
+
+### 2026-09-24 — Risk categorisation and Form 60 join the plan
+**What:** both go into M1, the document-backed Form 60 into M4, and the
+demonstration scenarios go from five to six. milestones.md, prd.md,
+rbi-compliance.md and current-milestone.md updated together.
+**Why:** docs/rbi-compliance.md turned these up as legal preconditions for
+onboarding a real customer rather than features, and a gap recorded in one
+document while the plan says nothing is a gap that gets built around.
+
+Para 40 makes every non-face-to-face customer HIGH RISK and all onboarding here
+is non-face-to-face, so the category is fixed by rule rather than reached by
+judgement - which is why it belongs in the engine beside the per-check results
+rather than in M5 with the configurable rules. M1 is also the earliest it can
+land: the category is an output of a verification run, and M1 is where runs
+begin. Two things left open deliberately rather than decided here: whether the
+category sits on the customer (para 12 categorises customers, para 38 drives
+periodic updation off it) or on the application, and how a category the
+regulation fixes coexists with configurable rules later - it must not be
+configurable downwards.
+
+Form 60 takes the declaration route in M1 and the stored signed form in M4. The
+split matters: the declaration is what stops the product excluding people, and
+it is a schema and validation change rather than a storage feature, so making
+it wait for documents would keep the customer form unlawful for two milestones
+longer than necessary.
+
+The sixth scenario is the reason both will actually get built. A rule nobody
+demonstrates is a rule nobody notices is missing, and "customer with no PAN" is
+the one a compliance officer asks for - refusing everyone without a PAN being
+the most common way an onboarding product is quietly non-compliant.
+**Decisions:** none new. This schedules what rbi-compliance.md already
+established; the two open questions above are deliberately left for the slice.
+**Docs touched:** docs/milestones.md (M1, M3, M4, scenarios), docs/prd.md
+(scope item 6 corrected, item 7 added), docs/rbi-compliance.md (gap list and
+obligation tables now say planned rather than gap), .memory/current-milestone.md
+(plan change recorded, and the erasure entry rewritten - para 46 makes it a
+compliance POSITION rather than debt, and the cascade is wider than was
+recorded: customer, application, case and acting employee are all undeletable).
+Also swept for stale "five scenarios" references, which had reached prd.md and
+two places in milestones.md.
+**Tests:** none - documentation only, no code touched.
