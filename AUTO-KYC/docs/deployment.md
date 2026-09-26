@@ -66,9 +66,23 @@ Two projects from the same repository. For each:
 2. Set **Root Directory** — this is the step people miss on a monorepo:
    - `AUTO-KYC/web-customer`
    - `AUTO-KYC/web-employee`
-3. Add one environment variable: `API_ORIGIN` = your Render URL, e.g.
-   `https://kycflow-api.onrender.com`. No trailing slash.
+3. Add one environment variable: `API_ORIGIN` = **your own** Render URL, the
+   one Render shows on the service page. It looks like
+   `https://YOUR-SERVICE.onrender.com`. No trailing slash.
 4. Deploy.
+
+**Take that URL from your Render dashboard, never from an example.** Render
+subdomains are global and first-come, and `kycflow-api` is already somebody
+else's — this document used to print it as the example, and it resolves to a
+live, unrelated Express service that answers `/api/health` with a cheerful
+200. So the mistake does not look like a mistake. Pasting a stranger's host
+into `API_ORIGIN` points your customers' PAN, date of birth and address at a
+server you do not control, and the proxy design means the browser would show
+your domain the whole time.
+
+Because the name is taken, `render.yaml` asking for `kycflow-api` will get you
+a suffixed hostname instead. Expect your URL NOT to match the blueprint's
+service name, and check the dashboard rather than guessing.
 
 **Set `API_ORIGIN` BEFORE the first build.** `next.config.ts` reads it inside
 `rewrites()`, which Next evaluates at BUILD time and writes into
@@ -76,7 +90,7 @@ Two projects from the same repository. For each:
 
 | API_ORIGIN at build time | destination in routes-manifest.json |
 | --- | --- |
-| set | `https://kycflow-api.onrender.com/api/:path*` |
+| set | `https://YOUR-SERVICE.onrender.com/api/:path*` |
 | unset | `http://localhost:4000/api/:path*` |
 
 Deploy without it and the site proxies to localhost — which on Vercel's servers

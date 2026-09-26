@@ -10,6 +10,11 @@
 # it as it is actually built.
 services:
   - type: web
+    # Render derives the hostname from this name, and names are global and
+    # first-come. `kycflow-api` is ALREADY TAKEN by an unrelated service, so
+    # deploying this blueprint gets you a suffixed hostname instead. Read the
+    # real URL off the Render dashboard; do not assume it from this name, and
+    # do not paste an example into Vercel's API_ORIGIN (docs/deployment.md).
     name: kycflow-api
     runtime: node
     plan: free

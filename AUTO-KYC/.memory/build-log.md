@@ -630,3 +630,42 @@ recorded: customer, application, case and acting employee are all undeletable).
 Also swept for stale "five scenarios" references, which had reached prd.md and
 two places in milestones.md.
 **Tests:** none - documentation only, no code touched.
+
+### 2026-09-26 — The example URL in the deploy runbook was a live stranger's host
+**What:** docs/deployment.md no longer prints `kycflow-api.onrender.com` as the
+example API_ORIGIN; it uses `YOUR-SERVICE.onrender.com` and says to read the
+real value off the Render dashboard. render.yaml gained a comment saying the
+service name is taken. The name itself was NOT changed, because changing it
+would orphan any service already deployed from this blueprint.
+**Why:** found by walking the runbook. Asked to check whether the application
+worked, with Docker refusing to start locally, the deployed API looked like the
+next best thing - so the example URL got pasted, and it answered HTTP 200.
+
+It is not ours. Four independent tells: /api/health returns a `timestamp` field
+this code does not emit; /api/auth/me answers "Cannot GET" where this code
+defines a route; /api/applications/me returns {"error":"Application not found"},
+a different envelope from this project's {"error":{"code","message"}}; and the
+response carries x-powered-by, which app.ts explicitly disables. Render
+subdomains are global and first-come and the name was simply taken by somebody
+else.
+
+The danger is the shape of the mistake rather than its size. A wrong API_ORIGIN
+that 404s gets noticed immediately; one that returns a cheerful 200 does not.
+And because next.config.ts proxies server-side, the browser would show the
+bank's own Vercel domain throughout while customer PAN, date of birth and
+address went to a host nobody here controls. A runbook example that resolves is
+a loaded gun, and this one had been sitting in the repository since 14
+September.
+**Decisions:** none. The service name in render.yaml stays as it is; a rename
+is the deployer's call, not the document's, and doing it here would silently
+create a second service for anyone already running the first.
+**Docs touched:** docs/deployment.md, render.yaml.
+**Tests:** none - documentation only. Separately, the whole application was
+verified end to end today for the first time since the deployment landed: 67
+unit + 90 integration, all three workspaces build, both migrations apply, seed
+works, and the customer flow was driven through the browser and the Next proxy
+- create, refuse-as-incomplete, save, CONSENT_REQUIRED, consent, submit - with
+the audit trail showing four correct rows and exactly ONE consent row despite
+two failed submits. Ownership answers 404, a bad uuid answers 404 not 500, a
+missing CSRF header answers 403, and the staff app bounced a customer session
+rather than rendering the queue.
